@@ -51,6 +51,11 @@ export interface MapSettings {
 
 export const DEFAULT_CITIES: CityConfig[] = [
   { id: 'bhopal', name: 'Bhopal', centerLat: 23.2500, centerLng: 77.4124, defaultZoom: 13, state: 'Madhya Pradesh', country: 'India' },
+  { id: 'biaora', name: 'Biaora', centerLat: 23.9164, centerLng: 76.9165, defaultZoom: 13, state: 'Madhya Pradesh', country: 'India' },
+  { id: 'narsinghgarh', name: 'Narsinghgarh', centerLat: 23.7054, centerLng: 77.0917, defaultZoom: 13, state: 'Madhya Pradesh', country: 'India' },
+  { id: 'tindoniya', name: 'Tindoniya', centerLat: 23.6333, centerLng: 77.0167, defaultZoom: 13, state: 'Madhya Pradesh', country: 'India' },
+  { id: 'kurawar', name: 'Kurawar', centerLat: 23.5167, centerLng: 77.0333, defaultZoom: 13, state: 'Madhya Pradesh', country: 'India' },
+  { id: 'sehore', name: 'Sehore', centerLat: 23.2032, centerLng: 77.0844, defaultZoom: 13, state: 'Madhya Pradesh', country: 'India' },
   { id: 'indore', name: 'Indore', centerLat: 22.7196, centerLng: 75.8577, defaultZoom: 13, state: 'Madhya Pradesh', country: 'India' },
   { id: 'mumbai', name: 'Mumbai', centerLat: 19.0760, centerLng: 72.8777, defaultZoom: 12, state: 'Maharashtra', country: 'India' },
   { id: 'delhi', name: 'Delhi', centerLat: 28.7041, centerLng: 77.1025, defaultZoom: 12, state: 'Delhi', country: 'India' },
@@ -90,6 +95,17 @@ const pendingRequests = new Set<string>();
 let activeSettings: MapSettings = { ...DEFAULT_MAP_SETTINGS };
 let listeners: ((settings: MapSettings) => void)[] = [];
 
+// Helper to ensure default cities are always present in activeSettings.cities
+function mergeDefaultCities(remoteCities?: CityConfig[]): CityConfig[] {
+  const list = Array.isArray(remoteCities) ? [...remoteCities] : [];
+  for (const defCity of DEFAULT_CITIES) {
+    if (!list.some(c => c.id === defCity.id)) {
+      list.push(defCity);
+    }
+  }
+  return list;
+}
+
 // Listen for updates from Firestore settings
 export function initializeMapService() {
   const settingsRef = doc(db, 'settings', 'map');
@@ -100,6 +116,15 @@ export function initializeMapService() {
       setDoc(settingsRef, DEFAULT_MAP_SETTINGS).catch(err => {
         console.warn('Could not seed default map settings in Firestore:', err);
       });
+    } else {
+      // If doc exists, ensure new cities are merged in
+      const existingData = snapshot.data() || {};
+      const mergedCities = mergeDefaultCities(existingData.cities);
+      if (mergedCities.length !== (existingData.cities?.length || 0)) {
+        setDoc(settingsRef, { ...existingData, cities: mergedCities }, { merge: true }).catch(err => {
+          console.warn('Could not merge new cities into Firestore map settings:', err);
+        });
+      }
     }
   }).catch(err => {
     console.warn('Failed to retrieve initial map settings, using defaults:', err);
@@ -107,7 +132,9 @@ export function initializeMapService() {
 
   return onSnapshot(settingsRef, (snapshot) => {
     if (snapshot.exists()) {
-      activeSettings = { ...DEFAULT_MAP_SETTINGS, ...snapshot.data() } as MapSettings;
+      const data = snapshot.data();
+      const mergedCities = mergeDefaultCities(data?.cities);
+      activeSettings = { ...DEFAULT_MAP_SETTINGS, ...data, cities: mergedCities } as MapSettings;
     } else {
       activeSettings = { ...DEFAULT_MAP_SETTINGS };
     }

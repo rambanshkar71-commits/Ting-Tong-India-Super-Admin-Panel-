@@ -11,7 +11,7 @@ import {
   getDoc
 } from 'firebase/firestore';
 import { Gig, GigBooking, Rider } from '../types';
-import { getActiveCity } from '../services/mapService';
+import { getActiveCity, getActiveMapSettings, updateMapSettingsInDb } from '../services/mapService';
 import { 
   Calendar, 
   Clock, 
@@ -612,6 +612,47 @@ export default function RiderGigView({ rider }: RiderGigViewProps) {
           </button>
         </div>
       )}
+
+      {/* Active Operating Zone & Location Bounds Bar */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2 shadow-lg">
+        <div className="flex items-center gap-2">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
+          <div>
+            <span className="text-[10px] text-slate-400 font-bold uppercase block">Active GPS Tracking Zone</span>
+            <span className="text-xs font-black text-slate-100 flex items-center gap-1">
+              <MapPin className="w-3.5 h-3.5 text-amber-500 inline" />
+              {getActiveCity().name} Grid ({getActiveCity().state})
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1">
+          <span className="text-[10px] text-slate-400 font-bold uppercase">City Zone:</span>
+          <select
+            value={getActiveCity().id}
+            onChange={async (e) => {
+              const cId = e.target.value;
+              const allCities = getActiveMapSettings().cities || [];
+              const targetC = allCities.find(c => c.id === cId);
+              if (targetC) {
+                await updateMapSettingsInDb({
+                  activeCityId: cId,
+                  defaultCenterLat: targetC.centerLat,
+                  defaultCenterLng: targetC.centerLng,
+                  defaultZoom: targetC.defaultZoom
+                });
+              }
+            }}
+            className="bg-transparent text-xs font-black text-amber-400 outline-none cursor-pointer"
+          >
+            {(getActiveMapSettings().cities || []).map(c => (
+              <option key={c.id} value={c.id} className="bg-slate-900 text-slate-200">
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
       {/* Earnings & Working Hours Micro Dashboard */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 grid grid-cols-2 gap-4 shadow-xl">

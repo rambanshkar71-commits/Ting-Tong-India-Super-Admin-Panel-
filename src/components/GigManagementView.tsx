@@ -102,13 +102,32 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     path
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
 }
 
 export const CITY_ZONES_HUBS: Record<string, { zones: string[]; hubs: string[] }> = {
   Bhopal: {
     zones: ['Arera Colony', 'MP Nagar', 'Indrapuri', 'Kolar Road', 'TT Nagar', 'Ayodhya Bypass'],
     hubs: ['MP Nagar Hub', 'Gulmohar Hub', 'Ayodhya Bypass Hub', 'Kolar Hub']
+  },
+  Biaora: {
+    zones: ['Main Market', 'Station Road', 'Multanpura', 'Guna Road', 'Rajgarh Highway'],
+    hubs: ['Biaora Main Hub', 'Station Road Hub']
+  },
+  Narsinghgarh: {
+    zones: ['Fort Area', 'Bada Bazaar', 'Talen Road', 'Bhopal Naka', 'Jal Mandir Zone'],
+    hubs: ['Narsinghgarh Center Hub', 'Bhopal Naka Hub']
+  },
+  Tindoniya: {
+    zones: ['Central Tindoniya', 'Main Road Zone', 'Gramin Sector'],
+    hubs: ['Tindoniya Main Hub']
+  },
+  Kurawar: {
+    zones: ['Kurawar Mandi', 'Narsinghgarh Road', 'Bhopal Highway', 'Bus Stand Area'],
+    hubs: ['Kurawar Central Hub']
+  },
+  Sehore: {
+    zones: ['Englishpura', 'Chanakyapuri', 'Bada Bazaar', 'Crescent Park Area', 'Indore Naka'],
+    hubs: ['Sehore City Center Hub', 'Indore Naka Hub']
   },
   Indore: {
     zones: ['Vijay Nagar', 'Palasia', 'Rajendra Nagar', 'Bhanwarkuan', 'Sukhliya', 'Anand Bazar'],

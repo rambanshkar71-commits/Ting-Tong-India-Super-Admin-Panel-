@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebase';
 import { doc, updateDoc, collection, onSnapshot, getDoc } from 'firebase/firestore';
 import { Order, Rider, Restaurant, Customer, Zone } from '../types';
-import { calculateDistance, getActiveCity, getZoneCenterForCity } from '../services/mapService';
+import { calculateDistance, getActiveCity, getZoneCenterForCity, getActiveMapSettings, updateMapSettingsInDb } from '../services/mapService';
 import LiveTrackingMap from './LiveTrackingMap';
 import { 
   MapPin, 
@@ -116,6 +116,8 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
         list.push({ id: doc.id, ...doc.data() } as Zone);
       });
       setZones(list);
+    }, (err) => {
+      console.warn("Zones snapshot listener notice:", err);
     });
     return () => unsub();
   }, []);
@@ -129,6 +131,8 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
           setAutoAssign(data.autoAssign);
         }
       }
+    }, (err) => {
+      console.warn("Dispatch settings snapshot listener notice:", err);
     });
     return () => unsub();
   }, []);
@@ -530,12 +534,38 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
           <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl relative flex flex-col min-h-[480px]">
             {/* Map Header Controls */}
             <div className="p-4 border-b border-slate-800/60 bg-slate-950/40 flex flex-wrap items-center justify-between gap-3 shrink-0">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Map className="w-4 h-4 text-amber-500" />
                 <span className="text-xs font-bold text-slate-200">Interactive {getActiveCity().name} Live Map</span>
-                <span className="text-[9px] px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 font-mono">
-                  Mercator Grid 1:1
-                </span>
+                
+                {/* Active City Bounds Switcher */}
+                <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1">
+                  <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">City Zone:</span>
+                  <select
+                    value={getActiveCity().id}
+                    onChange={async (e) => {
+                      const cId = e.target.value;
+                      const allCities = getActiveMapSettings().cities || [];
+                      const targetC = allCities.find(c => c.id === cId);
+                      if (targetC) {
+                        await updateMapSettingsInDb({
+                          activeCityId: cId,
+                          defaultCenterLat: targetC.centerLat,
+                          defaultCenterLng: targetC.centerLng,
+                          defaultZoom: targetC.defaultZoom
+                        });
+                      }
+                    }}
+                    className="bg-transparent text-xs font-black text-amber-400 outline-none cursor-pointer"
+                  >
+                    {(getActiveMapSettings().cities || []).map(c => (
+                      <option key={c.id} value={c.id} className="bg-slate-900 text-slate-200">
+                        {c.name} ({c.state})
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Map Layer Filters */}
