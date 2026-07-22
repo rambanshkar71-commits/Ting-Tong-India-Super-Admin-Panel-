@@ -1,0 +1,511 @@
+{
+  "entities": {
+    "system_settings": {
+      "title": "SystemSettings",
+      "description": "Global business settings and charge configurations for Ting Tong Bhopal",
+      "type": "object",
+      "properties": {
+        "companyName": { "type": "string" },
+        "supportPhone": { "type": "string" },
+        "supportEmail": { "type": "string" },
+        "baseCharge": { "type": "number" },
+        "perKmCharge": { "type": "number" },
+        "minOrderCharge": { "type": "number" },
+        "peakCharge": { "type": "number" },
+        "nightCharge": { "type": "number" },
+        "rainCharge": { "type": "number" },
+        "festivalCharge": { "type": "number" },
+        "freeDeliveryMinAmount": { "type": "number" },
+        "restaurantCommissionPct": { "type": "number" },
+        "riderCommissionPct": { "type": "number" },
+        "maintenanceMode": { "type": "boolean" },
+        "appVersion": { "type": "string" }
+      },
+      "required": ["companyName", "baseCharge", "perKmCharge"]
+    },
+    "customer": {
+      "title": "Customer",
+      "description": "Customer profiles on Ting Tong Bhopal",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "walletBalance": { "type": "number" },
+        "rewardPoints": { "type": "number" },
+        "status": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "email", "status"]
+    },
+    "restaurant": {
+      "title": "Restaurant",
+      "description": "Partner vendor restaurants in Bhopal",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "status": { "type": "string" },
+        "isOpen": { "type": "boolean" },
+        "rating": { "type": "number" },
+        "commissionPercentage": { "type": "number" },
+        "gstNo": { "type": "string" },
+        "fssaiNo": { "type": "string" },
+        "bankName": { "type": "string" },
+        "accountNumber": { "type": "string" },
+        "ifscCode": { "type": "string" },
+        "upiId": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "coverUrl": { "type": "string" }
+      },
+      "required": ["name", "email", "status", "isOpen"]
+    },
+    "rider": {
+      "title": "Rider",
+      "description": "Delivery partners and logistics personnel",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "status": { "type": "string" },
+        "onlineStatus": { "type": "string" },
+        "dutyStatus": { "type": "string" },
+        "rating": { "type": "number" },
+        "walletBalance": { "type": "number" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "drivingLicence": { "type": "string" },
+        "rcNumber": { "type": "string" },
+        "aadhaarNumber": { "type": "string" },
+        "panNumber": { "type": "string" },
+        "bankName": { "type": "string" },
+        "accountNumber": { "type": "string" },
+        "ifscCode": { "type": "string" },
+        "upiId": { "type": "string" }
+      },
+      "required": ["name", "email", "status", "onlineStatus", "dutyStatus"]
+    },
+    "order": {
+      "title": "Order",
+      "description": "Real-time orders placed on the platform",
+      "type": "object",
+      "properties": {
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "restaurantId": { "type": "string" },
+        "restaurantName": { "type": "string" },
+        "riderId": { "type": "string" },
+        "riderName": { "type": "string" },
+        "subtotal": { "type": "number" },
+        "deliveryCharge": { "type": "number" },
+        "platformCommission": { "type": "number" },
+        "restaurantEarnings": { "type": "number" },
+        "riderEarnings": { "type": "number" },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "paymentStatus": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "deliveryAddress": { "type": "string" },
+        "deliveryLat": { "type": "number" },
+        "deliveryLng": { "type": "number" },
+        "restaurantLat": { "type": "number" },
+        "restaurantLng": { "type": "number" },
+        "riderLat": { "type": "number" },
+        "riderLng": { "type": "number" }
+      },
+      "required": ["customerId", "restaurantId", "totalAmount", "status", "paymentMethod", "paymentStatus"]
+    },
+    "zone": {
+      "title": "Zone",
+      "description": "Service zones for Bhopal delivery boundaries",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "radius": { "type": "number" },
+        "minOrderAmount": { "type": "number" },
+        "maxDistance": { "type": "number" },
+        "areaCharges": { "type": "number" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["name", "radius", "active"]
+    },
+    "coupon": {
+      "title": "Coupon",
+      "description": "Discount coupons and festival marketing campaigns",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "discountType": { "type": "string" },
+        "discountValue": { "type": "number" },
+        "minOrderValue": { "type": "number" },
+        "active": { "type": "boolean" },
+        "expiryDate": { "type": "string" }
+      },
+      "required": ["code", "discountType", "discountValue", "active"]
+    },
+    "ticket": {
+      "title": "SupportTicket",
+      "description": "Customer, restaurant, and rider support tickets",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userRole": { "type": "string" },
+        "userName": { "type": "string" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "userRole", "subject", "message", "status"]
+    },
+    "audit_log": {
+      "title": "AuditLog",
+      "description": "Security audits and admin logging for full traceability",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["userId", "email", "action", "timestamp"]
+    },
+    "gig": {
+      "title": "Gig",
+      "description": "Live scheduled enterprise gig slots for rider booking",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "city": { "type": "string" },
+        "zone": { "type": "string" },
+        "hub": { "type": "string" },
+        "date": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "vehicleType": { "type": "string" },
+        "maxRiders": { "type": "number" },
+        "waitingListMax": { "type": "number" },
+        "basePay": { "type": "number" },
+        "perOrderPay": { "type": "number" },
+        "surgeBonus": { "type": "number" },
+        "rainBonus": { "type": "number" },
+        "festivalBonus": { "type": "number" },
+        "nightBonus": { "type": "number" },
+        "attendanceBonus": { "type": "number" },
+        "incentives": { "type": "number" },
+        "cancellationRules": { "type": "string" },
+        "penaltyRules": { "type": "string" },
+        "visibilityRules": { "type": "string" },
+        "status": { "type": "string" },
+        "bookedRiderIds": { "type": "array" },
+        "waitingListRiderIds": { "type": "array" },
+        "checkedInRiderIds": { "type": "array" },
+        "onlineRiderIds": { "type": "array" },
+        "completedRiderIds": { "type": "array" },
+        "cancelledRiderIds": { "type": "array" },
+        "missedRiderIds": { "type": "array" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "city", "zone", "hub", "date", "startTime", "endTime"]
+    },
+    "gig_booking": {
+      "title": "GigBooking",
+      "description": "Individual booking records connecting riders to gigs",
+      "type": "object",
+      "properties": {
+        "gigId": { "type": "string" },
+        "riderId": { "type": "string" },
+        "riderName": { "type": "string" },
+        "bookingStatus": { "type": "string" },
+        "bookingId": { "type": "string" },
+        "reportingTime": { "type": "string" },
+        "hubAddress": { "type": "string" },
+        "bookedAt": { "type": "string" },
+        "checkedInAt": { "type": "string" },
+        "completedAt": { "type": "string" },
+        "cancelledAt": { "type": "string" }
+      },
+      "required": ["gigId", "riderId", "bookingStatus"]
+    },
+    "gig_notification": {
+      "title": "GigNotification",
+      "description": "Alerts and messages relating to gig bookings, shifts, and statuses",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string" },
+        "riderId": { "type": "string" },
+        "gigId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "status": { "type": "string" },
+        "recipient": { "type": "string" }
+      },
+      "required": ["title", "message", "type", "createdAt", "recipient"]
+    },
+    "payment_setting": {
+      "title": "PaymentSetting",
+      "description": "Configuration variables for auto-calculation and payouts",
+      "type": "object",
+      "properties": {
+        "commissionPct": { "type": "number" },
+        "deliveryCharge": { "type": "number" },
+        "platformFee": { "type": "number" },
+        "minPayout": { "type": "number" },
+        "maxPayout": { "type": "number" },
+        "autoSettlement": { "type": "boolean" },
+        "manualSettlement": { "type": "boolean" },
+        "approvalWorkflow": { "type": "string" },
+        "settlementSchedule": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string" }
+      },
+      "required": ["commissionPct", "deliveryCharge", "platformFee", "minPayout", "maxPayout"]
+    },
+    "payment_employee": {
+      "title": "PaymentEmployee",
+      "description": "Internal operations employees and payroll details",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "role": { "type": "string" },
+        "monthlySalary": { "type": "number" },
+        "walletBalance": { "type": "number" },
+        "bankName": { "type": "string" },
+        "accountNumber": { "type": "string" },
+        "ifscCode": { "type": "string" },
+        "upiId": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "email", "role", "monthlySalary", "status"]
+    },
+    "payment_transaction": {
+      "title": "PaymentTransaction",
+      "description": "Financial payout transaction records for employees, riders, and vendors",
+      "type": "object",
+      "properties": {
+        "recipientId": { "type": "string" },
+        "recipientName": { "type": "string" },
+        "recipientType": { "type": "string" },
+        "amount": { "type": "number" },
+        "baseAmount": { "type": "number" },
+        "deliveryCharges": { "type": "number" },
+        "platformFee": { "type": "number" },
+        "commission": { "type": "number" },
+        "incentives": { "type": "number" },
+        "bonus": { "type": "number" },
+        "penalties": { "type": "number" },
+        "taxes": { "type": "number" },
+        "refundAdjustments": { "type": "number" },
+        "calculationType": { "type": "string" },
+        "status": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "referenceId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["recipientId", "recipientName", "recipientType", "amount", "status", "paymentMethod", "createdAt"]
+    },
+    "payment_audit_log": {
+      "title": "PaymentAuditLog",
+      "description": "Detailed auditor changes for manual payment manipulations",
+      "type": "object",
+      "properties": {
+        "transactionId": { "type": "string" },
+        "action": { "type": "string" },
+        "previousAmount": { "type": "number" },
+        "newAmount": { "type": "number" },
+        "bonusAdded": { "type": "number" },
+        "penaltyAdded": { "type": "number" },
+        "adminName": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["transactionId", "action", "adminName", "timestamp"]
+    },
+    "payment_notification": {
+      "title": "PaymentNotification",
+      "description": "Dispatched alerts on payment transfers, adjustments, and holds",
+      "type": "object",
+      "properties": {
+        "recipientId": { "type": "string" },
+        "recipientName": { "type": "string" },
+        "recipientType": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "sentAt": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["recipientId", "recipientType", "title", "message", "sentAt"]
+    },
+    "refund": {
+      "title": "Refund",
+      "description": "Logs of customer refunds for orders, credited to user wallet or processed via gateway",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "amount": { "type": "number" },
+        "refundType": { "type": "string" },
+        "reason": { "type": "string" },
+        "refundMode": { "type": "string" },
+        "refundMethod": { "type": "string" },
+        "transactionId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "processedBy": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["orderId", "customerId", "amount", "refundType", "createdAt", "status"]
+    },
+    "dispatch_timeline": {
+      "title": "DispatchTimeline",
+      "description": "Chronological timeline of admin dispatch overrides, force assignments, and transfers",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "type": { "type": "string" },
+        "previousRider": { "type": "string" },
+        "newRider": { "type": "string" },
+        "transferReason": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "adminName": { "type": "string" },
+        "adminRole": { "type": "string" }
+      },
+      "required": ["orderId", "type", "timestamp", "adminName", "adminRole"]
+    },
+    "dispatch_settings": {
+      "title": "DispatchSettings",
+      "description": "Engine capacity thresholds and timers",
+      "type": "object",
+      "properties": {
+        "maxActiveOrders": { "type": "number" },
+        "maxDailyOrders": { "type": "number" },
+        "maxDistanceRadius": { "type": "number" },
+        "maxPickupDelay": { "type": "number" },
+        "autoRetryInterval": { "type": "number" },
+        "adminTimeout": { "type": "number" }
+      },
+      "required": ["maxActiveOrders", "maxDailyOrders", "maxDistanceRadius", "maxPickupDelay"]
+    },
+    "map_setting": {
+      "title": "MapSetting",
+      "description": "Configuration variables for centralized map and routing services",
+      "type": "object",
+      "properties": {
+        "tileUrl": { "type": "string" },
+        "attribution": { "type": "string" },
+        "defaultZoom": { "type": "number" },
+        "minZoom": { "type": "number" },
+        "maxZoom": { "type": "number" },
+        "defaultCenterLat": { "type": "number" },
+        "defaultCenterLng": { "type": "number" },
+        "osrmEndpoint": { "type": "string" },
+        "defaultZoneRadius": { "type": "number" },
+        "defaultZoneCharges": { "type": "number" },
+        "defaultMaxDistance": { "type": "number" },
+        "distanceMode": { "type": "string" },
+        "averageRiderSpeed": { "type": "number" },
+        "preparationBuffer": { "type": "number" },
+        "etaMultiplier": { "type": "number" }
+      },
+      "required": ["tileUrl", "attribution", "defaultZoom", "defaultCenterLat", "defaultCenterLng", "osrmEndpoint"]
+    }
+  },
+  "firestore": {
+    "/system_settings/{settingId}": {
+      "schema": "system_settings",
+      "description": "Stores platform configuration variables"
+    },
+    "/customers/{customerId}": {
+      "schema": "customer",
+      "description": "Customer profiles, wallet balances, and logs"
+    },
+    "/restaurants/{restaurantId}": {
+      "schema": "restaurant",
+      "description": "Partner vendor restaurant accounts"
+    },
+    "/riders/{riderId}": {
+      "schema": "rider",
+      "description": "Rider delivery partners accounts"
+    },
+    "/orders/{orderId}": {
+      "schema": "order",
+      "description": "Live, ongoing, and completed delivery records"
+    },
+    "/zones/{zoneId}": {
+      "schema": "zone",
+      "description": "Platform operation zones"
+    },
+    "/coupons/{couponId}": {
+      "schema": "coupon",
+      "description": "Platform marketing discount codes"
+    },
+    "/tickets/{ticketId}": {
+      "schema": "ticket",
+      "description": "Support query ticket documents"
+    },
+    "/audit_logs/{logId}": {
+      "schema": "audit_log",
+      "description": "Immutable security tracking registers"
+    },
+    "/gigs/{gigId}": {
+      "schema": "gig",
+      "description": "Live, open, and closed gig slots for Bhopal delivery zones"
+    },
+    "/gig_bookings/{bookingId}": {
+      "schema": "gig_booking",
+      "description": "Relational rider booking registrations"
+    },
+    "/gig_notifications/{notificationId}": {
+      "schema": "gig_notification",
+      "description": "Live status alerts and FCM notifications for gig booking events"
+    },
+    "/payment_settings/{settingId}": {
+      "schema": "payment_setting",
+      "description": "Configuration variables for auto-calculation and payouts"
+    },
+    "/payment_employees/{employeeId}": {
+      "schema": "payment_employee",
+      "description": "Internal operations employees and payroll details"
+    },
+    "/payment_transactions/{transactionId}": {
+      "schema": "payment_transaction",
+      "description": "Financial payout transaction records for employees, riders, and vendors"
+    },
+    "/payment_audit_logs/{logId}": {
+      "schema": "payment_audit_log",
+      "description": "Detailed auditor changes for manual payment manipulations"
+    },
+    "/payment_notifications/{notificationId}": {
+      "schema": "payment_notification",
+      "description": "Dispatched alerts on payment transfers, adjustments, and holds"
+    },
+    "/refunds/{refundId}": {
+      "schema": "refund",
+      "description": "Logs of customer refunds for orders"
+    },
+    "/dispatch_timeline/{timelineId}": {
+      "schema": "dispatch_timeline",
+      "description": "Real-time dispatch assignment log timeline"
+    },
+    "/dispatch_settings/{settingId}": {
+      "schema": "dispatch_settings",
+      "description": "Dynamic capacity sliders and administrative safety timeouts"
+    },
+    "/settings/{settingId}": {
+      "schema": "map_setting",
+      "description": "Stores generic platform configurations such as map and routing parameters"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Ting Tong India",
+  "description": "Enterprise production-grade Super Admin Panel for the Ting Tong India food delivery platform, managing orders, restaurants, riders, customers, and financials in real-time across multiple dynamic cities.",
+  "requestFramePermissions": ["camera", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
