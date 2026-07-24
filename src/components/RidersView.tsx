@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { db } from '../firebase';
 import { doc, updateDoc, setDoc } from 'firebase/firestore';
-import { Rider, Order } from '../types';
+import { Rider, Order, Zone } from '../types';
 import { getActiveCity } from '../services/mapService';
 import RiderRegistrationForm from './RiderRegistrationForm';
 import LiveTrackingMap from './LiveTrackingMap';
@@ -44,9 +44,10 @@ import {
 interface RidersViewProps {
   riders: Rider[];
   orders: Order[];
+  zones?: Zone[];
 }
 
-export default function RidersView({ riders, orders = [] }: RidersViewProps) {
+export default function RidersView({ riders, orders = [], zones = [] }: RidersViewProps) {
   const [subTab, setSubTab] = useState<'directory' | 'live-fleet'>('directory');
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedRider, setSelectedRider] = useState<Rider | null>(null);
@@ -854,7 +855,7 @@ export default function RidersView({ riders, orders = [] }: RidersViewProps) {
       )}
 
       {subTab === 'live-fleet' && (
-        <LiveFleetTelemetry riders={riders} orders={orders} />
+        <LiveFleetTelemetry riders={riders} orders={orders} zones={zones} />
       )}
 
       {/* DOCUMENT CONFIRMATION MODAL BEFORE APPROVAL */}
@@ -1212,7 +1213,7 @@ export default function RidersView({ riders, orders = [] }: RidersViewProps) {
   );
 }
 
-export function LiveFleetTelemetry({ riders, orders = [] }: { riders: Rider[]; orders?: Order[] }) {
+export function LiveFleetTelemetry({ riders, orders = [], zones = [] }: { riders: Rider[]; orders?: Order[]; zones?: Zone[] }) {
   const [selectedRider, setSelectedRider] = useState<Rider | null>(riders[0] || null);
 
   const getBattery = (r: Rider & { battery?: number }) => {
@@ -1369,12 +1370,12 @@ export function LiveFleetTelemetry({ riders, orders = [] }: { riders: Rider[]; o
               orders={orders}
               restaurants={[]}
               customers={[]}
-              zones={[]}
+              zones={zones}
               filterRiders={true}
               filterRestaurants={false}
               filterCustomers={false}
               filterRoutes={false}
-              filterZones={false}
+              filterZones={true}
               selectedRider={selectedRider}
               setSelectedRider={setSelectedRider}
               selectedOrder={null}

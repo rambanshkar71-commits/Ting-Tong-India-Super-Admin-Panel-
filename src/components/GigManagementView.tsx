@@ -12,7 +12,7 @@ import {
   orderBy,
   writeBatch
 } from 'firebase/firestore';
-import { Gig, GigBooking, Rider } from '../types';
+import { Gig, GigBooking, Rider, Zone } from '../types';
 import { getActiveCity } from '../services/mapService';
 import { 
   Calendar, 
@@ -159,6 +159,7 @@ export default function GigManagementView() {
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [bookings, setBookings] = useState<GigBooking[]>([]);
   const [riders, setRiders] = useState<Rider[]>([]);
+  const [firestoreZones, setFirestoreZones] = useState<Zone[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Roster Modal States
@@ -270,10 +271,25 @@ export default function GigManagementView() {
       }
     );
 
+    const unsubZones = onSnapshot(
+      collection(db, 'zones'),
+      (snapshot) => {
+        const list: Zone[] = [];
+        snapshot.forEach((doc) => {
+          list.push({ id: doc.id, ...doc.data() } as Zone);
+        });
+        setFirestoreZones(list);
+      },
+      (error) => {
+        console.warn('Could not load zones list for admin gig panel:', error);
+      }
+    );
+
     return () => {
       unsubGigs();
       unsubBookings();
       unsubRiders();
+      unsubZones();
     };
   }, []);
 
@@ -729,12 +745,16 @@ export default function GigManagementView() {
   });
 
   // Unique cities & zones for filters
-  const uniqueCities = ['All', ...Array.from(new Set(gigs.map(g => g.city)))];
-  const uniqueZones = ['All', ...Array.from(new Set(
-    gigs
+  const uniqueCities = ['All', ...Array.from(new Set([
+    ...gigs.map(g => g.city),
+    ...firestoreZones.map(z => z.name)
+  ]))];
+  const uniqueZones = ['All', ...Array.from(new Set([
+    ...firestoreZones.map(z => z.name),
+    ...gigs
       .filter(g => selectedCity === 'All' || g.city === selectedCity)
       .map(g => g.zone)
-  ))];
+  ]))];
 
   // Filtering gigs list
   const filteredGigs = gigs.filter(g => {
@@ -1670,9 +1690,11 @@ export default function GigManagementView() {
                   <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Delivery Zone</label>
                   {(() => {
                     const currentCityData = CITY_ZONES_HUBS[formData.city] || { zones: [], hubs: [] };
-                    const formZones = currentCityData.zones.includes(formData.zone)
-                      ? currentCityData.zones
-                      : formData.zone ? [formData.zone, ...currentCityData.zones] : currentCityData.zones;
+                    const fsZoneNames = firestoreZones.map(z => z.name);
+                    const combinedZones = Array.from(new Set([...fsZoneNames, ...currentCityData.zones]));
+                    const formZones = combinedZones.includes(formData.zone)
+                      ? combinedZones
+                      : formData.zone ? [formData.zone, ...combinedZones] : combinedZones;
 
                     return (
                       <select

@@ -182,11 +182,18 @@ export interface Order {
 export interface Zone {
   id: string;
   name: string;
+  cityId?: string;
   radius: number; // in KM
   minOrderAmount: number;
   maxDistance: number;
   areaCharges: number;
   active: boolean;
+  status?: 'active' | 'offline';
+  centerLat?: number;
+  centerLng?: number;
+  capacity?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Coupon {

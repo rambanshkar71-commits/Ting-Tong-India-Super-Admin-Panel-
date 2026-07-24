@@ -3,6 +3,7 @@ import { db } from '../firebase';
 import { 
   collection, 
   getDocs, 
+  onSnapshot,
   doc, 
   updateDoc, 
   setDoc, 
@@ -72,19 +73,13 @@ export default function LogisticsCatalogTab({ restaurants, riders, orders, onLog
   const [assignRiderId, setAssignRiderId] = useState('');
 
   useEffect(() => {
-    const fetchZonesAndMenus = async () => {
-      try {
-        const zoneSnap = await getDocs(collection(db, 'zones'));
-        if (!zoneSnap.empty) {
-          setZones(zoneSnap.docs.map(d => ({ id: d.id, ...d.data() }) as Zone));
-        } else {
-          setZones([
-            { id: "zone_01", name: "Arera Colony & MP Nagar Central", radius: 5, minOrderAmount: 150, maxDistance: 10, areaCharges: 30, active: true },
-            { id: "zone_02", name: "Kolar Road Boundary Zone", radius: 8, minOrderAmount: 200, maxDistance: 15, areaCharges: 40, active: true },
-            { id: "zone_03", name: "Indrapuri & Piplani Sector", radius: 6, minOrderAmount: 150, maxDistance: 12, areaCharges: 35, active: true }
-          ]);
-        }
+    const unsubZones = onSnapshot(collection(db, 'zones'), (snap) => {
+      setZones(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Zone));
+      setLoading(false);
+    }, (err) => console.error("Error subscribing zones in LogisticsCatalogTab:", err));
 
+    const fetchMenus = async () => {
+      try {
         const menuSnap = await getDocs(collection(db, 'menu_items'));
         if (!menuSnap.empty) {
           setMenuItems(menuSnap.docs.map(d => ({ id: d.id, ...d.data() }) as MenuItem));
@@ -99,29 +94,37 @@ export default function LogisticsCatalogTab({ restaurants, riders, orders, onLog
         }
       } catch (err) {
         console.error(err);
-      } finally {
-        setLoading(false);
       }
     };
-    fetchZonesAndMenus();
+    fetchMenus();
+
+    return () => unsubZones();
   }, []);
 
   // Zones
   const handleCreateZone = async () => {
     if (!newZoneName) return;
     try {
+      const activeCity = getActiveCity();
       const id = "zone_" + Date.now();
+      const nowIso = new Date().toISOString();
       const zn: Zone = {
         id,
         name: newZoneName,
+        cityId: activeCity.id,
         radius: Number(newZoneRadius),
         minOrderAmount: 150,
         maxDistance: Number(newZoneRadius) * 2,
         areaCharges: Number(newZoneCharges),
-        active: true
+        active: true,
+        status: 'active',
+        centerLat: activeCity.centerLat,
+        centerLng: activeCity.centerLng,
+        capacity: 15,
+        createdAt: nowIso,
+        updatedAt: nowIso
       };
       await setDoc(doc(db, 'zones', id), zn);
-      setZones([...zones, zn]);
       onLogEvent('ZONE_CREATED', `Added operational delivery boundary: ${zn.name} (${zn.radius} KM)`);
       setNewZoneName('');
       alert("New operational delivery zone registered in Firestore!");

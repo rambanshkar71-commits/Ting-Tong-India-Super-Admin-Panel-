@@ -224,16 +224,10 @@ export default function LiveTrackingMap({
       return;
     }
 
-    const activeZones = zones.length > 0 ? zones : [
-      { id: 'z1', name: 'Central Commercial Hub', radius: 3, active: true },
-      { id: 'z2', name: 'Premium Residential Sector', radius: 4, active: true },
-      { id: 'z3', name: 'Eastern Industrial Zone', radius: 4.5, active: true },
-      { id: 'z4', name: 'Southern Suburb Belt', radius: 5, active: true }
-    ];
-
+    const activeZones = zones;
     const z = activeZones.find(item => item.id === selectedZone);
     if (z) {
-      const center = getZoneCenterForCity(z.name, activeCity);
+      const center = (z.centerLat && z.centerLng) ? [z.centerLat, z.centerLng] as [number, number] : getZoneCenterForCity(z.name, activeCity);
       map.flyTo(center, 14);
     }
   }, [selectedZone, zones]);
@@ -483,15 +477,10 @@ export default function LiveTrackingMap({
     // 6a. Draw Delivery Zones (Colored transparent Hexagonal polygons)
     if (filterZones) {
       const activeCity = getActiveCity();
-      const activeZones = zones.length > 0 ? zones : [
-        { id: 'z1', name: 'Central Commercial Hub', radius: 3, active: true },
-        { id: 'z2', name: 'Premium Residential Sector', radius: 4, active: true },
-        { id: 'z3', name: 'Eastern Industrial Zone', radius: 4.5, active: true },
-        { id: 'z4', name: 'Southern Suburb Belt', radius: 5, active: true }
-      ];
+      const activeZones = zones;
 
       activeZones.forEach((z, idx) => {
-        const center = getZoneCenterForCity(z.name, activeCity);
+        const center = (z.centerLat && z.centerLng) ? [z.centerLat, z.centerLng] as [number, number] : getZoneCenterForCity(z.name, activeCity);
         
         const isSelected = selectedZone === z.id;
         

@@ -39,6 +39,8 @@ import GigManagementView from './components/GigManagementView';
 import PaymentManagementView from './components/PaymentManagementView';
 import RiderGigView from './components/RiderGigView';
 import { initializeMapService, getActiveCity } from './services/mapService';
+import { initializeZoneService, subscribeToZones } from './services/zoneService';
+import { Zone } from './types';
 
 // Icons & UI elements
 import { 
@@ -160,11 +162,20 @@ export default function App() {
     return unsubscribe;
   }, []);
 
-  // Initialize centralized Map Settings subscription
+  // Initialize centralized Map Settings & Zone Service subscription
+  const [zones, setZones] = useState<Zone[]>([]);
+
   useEffect(() => {
     const unsubMap = initializeMapService();
+    const unsubZones = initializeZoneService();
+    const unsubZoneSub = subscribeToZones((updatedZones) => {
+      setZones(updatedZones);
+    });
+
     return () => {
-      unsubMap();
+      if (unsubMap) unsubMap();
+      if (unsubZones) unsubZones();
+      if (unsubZoneSub) unsubZoneSub();
     };
   }, []);
 
@@ -1556,6 +1567,7 @@ export default function App() {
             <RidersView 
               riders={riders} 
               orders={orders}
+              zones={zones}
             />
           )}
 

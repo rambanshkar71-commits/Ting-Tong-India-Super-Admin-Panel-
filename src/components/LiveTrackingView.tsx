@@ -219,25 +219,12 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
   };
 
   const resolvedZones = useMemo(() => {
-    const rawList = zones.length > 0 ? zones : [
-      { id: 'z1', name: 'MP Nagar Zone', radius: 3, active: true },
-      { id: 'z2', name: 'Arera Colony Zone', radius: 4, active: true },
-      { id: 'z3', name: 'Indrapuri East Zone', radius: 5, active: true },
-      { id: 'z4', name: 'Kolar Road South Zone', radius: 6, active: true }
-    ];
-
-    const capacities = [15, 12, 20, 10];
-    return rawList.map((z, idx) => {
-      const zoneNum = idx + 1;
-      let cleanName = z.name;
-      if (!cleanName.toLowerCase().startsWith('zone')) {
-        cleanName = `Zone ${zoneNum}: ${cleanName.replace(/Zone\s*\d*:?\s*/gi, '')}`;
-      }
+    return zones.map((z) => {
       return {
         ...z,
-        name: cleanName,
-        radius: z.radius || (idx === 0 ? 3 : idx === 1 ? 4 : idx === 2 ? 5 : 6),
-        capacity: (z as any).capacity || capacities[idx % capacities.length] || 15,
+        name: z.name,
+        radius: z.radius || 5,
+        capacity: z.capacity || 15,
         active: z.active !== false
       };
     });
@@ -246,12 +233,13 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
   // Deterministic operational zone assignment for each rider
   const getAssignedZoneForRider = (rider: Rider) => {
     if (resolvedZones.length === 0) {
-      return { id: 'z1', name: 'Zone 1: MP Nagar Zone', center: [23.2324, 77.4318] as [number, number], radius: 3 };
+      const activeCity = getActiveCity();
+      return { id: 'default', name: activeCity.name, center: [activeCity.centerLat, activeCity.centerLng] as [number, number], radius: 5 };
     }
     const hash = rider.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     const zoneIndex = hash % resolvedZones.length;
     const zone = resolvedZones[zoneIndex];
-    const center = getZoneCenter(zone.name);
+    const center = (zone.centerLat && zone.centerLng) ? [zone.centerLat, zone.centerLng] as [number, number] : getZoneCenter(zone.name);
     return {
       id: zone.id,
       name: zone.name,

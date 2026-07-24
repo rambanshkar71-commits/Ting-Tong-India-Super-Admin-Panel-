@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { Coupon, Zone } from '../types';
 import { getActiveCity } from '../services/mapService';
 import { 
@@ -35,22 +35,21 @@ export default function MarketingZonesView() {
   const [zoneMaxDist, setZoneMaxDist] = useState('');
   const [zoneCharges, setZoneCharges] = useState('');
 
-  const fetchMarketingData = async () => {
-    try {
-      const coupSnap = await getDocs(collection(db, 'coupons'));
-      const zoneSnap = await getDocs(collection(db, 'zones'));
-
-      setCoupons(coupSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Coupon));
-      setZones(zoneSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Zone));
-    } catch (err) {
-      console.error("Error fetching marketing & zones lists: ", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchMarketingData();
+    const unsubCoupons = onSnapshot(collection(db, 'coupons'), (snap) => {
+      setCoupons(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Coupon));
+      setLoading(false);
+    }, (err) => console.error("Error subscribing coupons:", err));
+
+    const unsubZones = onSnapshot(collection(db, 'zones'), (snap) => {
+      setZones(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Zone));
+      setLoading(false);
+    }, (err) => console.error("Error subscribing zones:", err));
+
+    return () => {
+      unsubCoupons();
+      unsubZones();
+    };
   }, []);
 
   const handleCreateCoupon = async (e: React.FormEvent) => {
@@ -103,19 +102,27 @@ export default function MarketingZonesView() {
     if (!zoneName || !zoneRadius) return;
 
     try {
+      const activeCity = getActiveCity();
       const id = "zone_" + Date.now();
+      const nowIso = new Date().toISOString();
       const newZone: Zone = {
         id,
         name: zoneName,
+        cityId: activeCity.id,
         radius: Number(zoneRadius),
         minOrderAmount: Number(zoneMinOrder) || 150,
         maxDistance: Number(zoneMaxDist) || 12,
         areaCharges: Number(zoneCharges) || 30,
-        active: true
+        active: true,
+        status: 'active',
+        centerLat: activeCity.centerLat,
+        centerLng: activeCity.centerLng,
+        capacity: 15,
+        createdAt: nowIso,
+        updatedAt: nowIso
       };
 
       await setDoc(doc(db, 'zones', id), newZone);
-      setZones([...zones, newZone]);
 
       setZoneName('');
       setZoneRadius('');
