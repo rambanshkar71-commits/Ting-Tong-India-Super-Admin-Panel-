@@ -329,7 +329,7 @@ export default function App() {
             let isTarget = false;
             if (portalMode === 'admin' && (data.recipient === 'admin' || data.recipient === 'all')) {
               isTarget = true;
-            } else if (portalMode === 'rider' && currentRider && (data.recipient === 'rider' || data.recipient === 'all') && data.riderId === currentRider.id) {
+            } else if (portalMode === 'rider' && currentRider && (data.recipient === 'rider' || data.recipient === 'all') && (data.riderId === currentRider.id || data.assignedRiderId === currentRider.id)) {
               isTarget = true;
             }
 
@@ -479,7 +479,7 @@ export default function App() {
   if (currentRider) {
     // Sync current rider details with real-time state from DB
     const liveRider = riders.find(r => r.id === currentRider.id) || currentRider;
-    const assignedOrders = orders.filter(o => o.riderId === liveRider.id && o.status !== 'delivered' && o.status !== 'cancelled');
+    const assignedOrders = orders.filter(o => (o.riderId === liveRider.id || o.assignedRiderId === liveRider.id) && o.status !== 'delivered' && o.status !== 'cancelled');
 
     // Real-time daily statistics calculation
     const todayStart = new Date();
@@ -487,7 +487,7 @@ export default function App() {
     const todayStartTime = todayStart.getTime();
 
     const riderOrdersToday = orders.filter(o => 
-      o.riderId === liveRider.id && 
+      (o.riderId === liveRider.id || o.assignedRiderId === liveRider.id) && 
       o.createdAt && new Date(o.createdAt).getTime() >= todayStartTime
     );
 
@@ -495,7 +495,7 @@ export default function App() {
     const completedOrdersTodayCount = riderOrdersToday.filter(o => o.status === 'delivered').length;
     
     const activeOrdersCount = orders.filter(o => 
-      o.riderId === liveRider.id && 
+      (o.riderId === liveRider.id || o.assignedRiderId === liveRider.id) && 
       o.status !== 'delivered' && 
       o.status !== 'cancelled'
     ).length;
@@ -1014,11 +1014,14 @@ export default function App() {
 
                         {/* Action buttons based on status */}
                         <div className="pt-2">
-                          {(o.status === 'accepted' || o.status === 'preparing' || o.status === 'ready_for_pickup') && (
+                          {(o.status === 'accepted' || o.status === 'assigned' || o.status === 'preparing' || o.status === 'ready_for_pickup' || o.status === 'pending') && (
                             <button
                               onClick={async () => {
                                 try {
-                                  await updateDoc(doc(db, 'orders', o.id), { status: 'picked_up' });
+                                  await updateDoc(doc(db, 'orders', o.id), { 
+                                    status: 'picked_up',
+                                    updatedAt: new Date().toISOString()
+                                  });
                                 } catch (err: any) {
                                   alert("त्रुटि: " + err.message);
                                 }
@@ -1029,13 +1032,14 @@ export default function App() {
                             </button>
                           )}
 
-                          {o.status === 'picked_up' && (
+                          {(o.status === 'picked_up' || o.status === 'picked') && (
                             <button
                               onClick={async () => {
                                 try {
                                   await updateDoc(doc(db, 'orders', o.id), { 
                                     status: 'delivered',
-                                    paymentStatus: 'paid'
+                                    paymentStatus: 'paid',
+                                    updatedAt: new Date().toISOString()
                                   });
                                   
                                   // Real-time wallet calculation
@@ -1105,7 +1109,7 @@ export default function App() {
                   // We have 'orders' delivered state or we can pull from parent payment_transactions list if we have it here? Oh, in App.tsx we don't have payment_transactions yet.
                   // Wait, can we fetch payment_transactions in App.tsx or use orders delivery list?
                   // Yes! We have orders! We can show orders delivered by this rider, displaying their earnings!
-                  const myDeliveredOrders = orders.filter(o => o.riderId === liveRider.id && o.status === 'delivered');
+                  const myDeliveredOrders = orders.filter(o => (o.riderId === liveRider.id || o.assignedRiderId === liveRider.id) && o.status === 'delivered');
 
                   return (
                     <div className="space-y-2 max-h-56 overflow-y-auto">

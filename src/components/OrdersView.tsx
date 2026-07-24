@@ -324,6 +324,7 @@ export default function OrdersView({ orders, riders }: OrdersViewProps) {
 
       await updateDoc(orderRef, {
         riderId,
+        assignedRiderId: riderId,
         riderName,
         riderEarnings,
         status: 'accepted',

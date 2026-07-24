@@ -99,6 +99,7 @@
         "restaurantId": { "type": "string" },
         "restaurantName": { "type": "string" },
         "riderId": { "type": "string" },
+        "assignedRiderId": { "type": "string" },
         "riderName": { "type": "string" },
         "subtotal": { "type": "number" },
         "deliveryCharge": { "type": "number" },

@@ -385,6 +385,7 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
       const orderRef = doc(db, 'orders', selectedDispatchOrderId);
       await updateDoc(orderRef, {
         riderId: riderId,
+        assignedRiderId: riderId,
         riderName: riderName,
         status: 'accepted',
         updatedAt: new Date().toISOString()

@@ -151,9 +151,11 @@ export interface Order {
   id: string;
   customerId: string;
   customerName: string;
+  customerPhone?: string;
   restaurantId: string;
   restaurantName: string;
   riderId: string | null;
+  assignedRiderId?: string | null;
   riderName: string | null;
   items: OrderItem[];
   subtotal: number;

@@ -303,6 +303,7 @@ export default function ManualDispatchControl({
 
       await updateDoc(orderRef, {
         riderId: null,
+        assignedRiderId: null,
         riderName: null,
         riderEarnings: 0,
         status: 'pending',
@@ -462,6 +463,7 @@ export default function ManualDispatchControl({
 
       await updateDoc(orderRef, {
         riderId: rider.id,
+        assignedRiderId: rider.id,
         riderName: rider.name,
         riderEarnings,
         status: 'accepted',
@@ -504,6 +506,7 @@ export default function ManualDispatchControl({
 
       await updateDoc(orderRef, {
         riderId: targetRiderForTransfer.id,
+        assignedRiderId: targetRiderForTransfer.id,
         riderName: targetRiderForTransfer.name,
         riderEarnings,
         status: 'accepted',
@@ -551,6 +554,7 @@ export default function ManualDispatchControl({
 
       await updateDoc(orderRef, {
         riderId: null,
+        assignedRiderId: null,
         riderName: null,
         riderEarnings: 0,
         status: 'pending',
@@ -659,6 +663,7 @@ export default function ManualDispatchControl({
 
       await updateDoc(orderRef, {
         riderId: rider.id,
+        assignedRiderId: rider.id,
         riderName: rider.name,
         riderEarnings,
         status: 'accepted',

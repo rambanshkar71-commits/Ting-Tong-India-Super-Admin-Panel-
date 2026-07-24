@@ -237,6 +237,7 @@ export default function LogisticsCatalogTab({ restaurants, riders, orders, onLog
         const chosenRider = riders.find(r => r.id === assignRiderId);
         if (chosenRider) {
           fieldsToUpdate.riderId = chosenRider.id;
+          fieldsToUpdate.assignedRiderId = chosenRider.id;
           fieldsToUpdate.riderName = chosenRider.name;
         }
       }
