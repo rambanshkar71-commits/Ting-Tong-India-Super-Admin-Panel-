@@ -135,7 +135,7 @@ export default function LiveTrackingMap({
 
   // 1. Check if live tracking data exists
   const hasLiveTrackingData = useMemo(() => {
-    const onlineRiders = riders.filter(r => r.onlineStatus === 'online');
+    const onlineRiders = riders.filter(r => r.onlineStatus === 'online' || r.dutyStatus === 'on_duty');
     return onlineRiders.length > 0 && onlineRiders.some(r => typeof r.lat === 'number' && typeof r.lng === 'number' && r.lat !== 0 && r.lng !== 0);
   }, [riders]);
 
@@ -508,7 +508,7 @@ export default function LiveTrackingMap({
           ]);
         }
 
-        const ridersInZone = riders.filter(r => r.onlineStatus === 'online' && calculateDistance(r.lat, r.lng, center[0], center[1]) <= z.radius).length;
+        const ridersInZone = riders.filter(r => (r.onlineStatus === 'online' || r.dutyStatus === 'on_duty') && calculateDistance(r.lat, r.lng, center[0], center[1]) <= z.radius).length;
         const ordersInZone = orders.filter(o => ['accepted', 'preparing', 'ready_for_pickup', 'picked_up'].includes(o.status) && calculateDistance(o.deliveryLat, o.deliveryLng, center[0], center[1]) <= z.radius).length;
         const coverageText = ridersInZone === 0 ? 'CRITICAL DEMAND' : (ridersInZone < 2 ? 'MODERATE DEPTH' : 'OPTIMAL GRID');
 
@@ -547,7 +547,7 @@ export default function LiveTrackingMap({
     // Filter and collect riders
     if (filterRiders) {
       riders
-        .filter(r => r.onlineStatus === 'online')
+        .filter(r => r.onlineStatus === 'online' || r.dutyStatus === 'on_duty')
         .filter(r => typeof r.lat === 'number' && typeof r.lng === 'number' && r.lat !== 0 && r.lng !== 0)
         .forEach(r => {
           markerItems.push({

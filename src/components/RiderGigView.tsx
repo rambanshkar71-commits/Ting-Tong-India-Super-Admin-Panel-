@@ -464,10 +464,15 @@ export default function RiderGigView({ rider }: RiderGigViewProps) {
       }
 
       try {
+        const nowStr = new Date().toISOString();
         await updateDoc(doc(db, 'riders', rider.id), {
           activeGigId: gig.id,
           activeGigName: gig.name,
-          activeGigStatus: 'checked_in'
+          activeGigStatus: 'checked_in',
+          dutyStatus: 'on_duty',
+          onlineStatus: 'online',
+          lastActiveAt: nowStr,
+          lastLocationUpdate: nowStr
         });
       } catch (e) {
         console.warn("Could not update rider doc activeGigStatus:", e);
@@ -495,10 +500,15 @@ export default function RiderGigView({ rider }: RiderGigViewProps) {
       }
 
       try {
+        const nowStr = new Date().toISOString();
         await updateDoc(doc(db, 'riders', rider.id), {
           activeGigId: gig.id,
           activeGigName: gig.name,
-          activeGigStatus: 'online'
+          activeGigStatus: 'online',
+          dutyStatus: 'on_duty',
+          onlineStatus: 'online',
+          lastActiveAt: nowStr,
+          lastLocationUpdate: nowStr
         });
       } catch (e) {
         console.warn("Could not update rider doc activeGigStatus:", e);

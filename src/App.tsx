@@ -809,12 +809,22 @@ export default function App() {
                           const nextDuty = liveRider.dutyStatus === 'on_duty' ? 'off_duty' : 'on_duty';
                           const nextOnline = nextDuty === 'on_duty' ? 'online' : 'offline';
                           try {
+                            const nowStr = new Date().toISOString();
                             await updateDoc(doc(db, 'riders', liveRider.id), { 
                               dutyStatus: nextDuty,
                               onlineStatus: nextOnline,
-                              lastActiveAt: new Date().toISOString(),
-                              lastLocationUpdate: new Date().toISOString()
+                              lastActiveAt: nowStr,
+                              lastLocationUpdate: nowStr
                             });
+
+                            const authUid = (liveRider as any).userId || (liveRider as any).authUid || user?.uid;
+                            if (authUid) {
+                              updateDoc(doc(db, 'users', authUid), {
+                                onlineStatus: nextOnline,
+                                dutyStatus: nextDuty,
+                                updatedAt: nowStr
+                              }).catch(() => {});
+                            }
                           } catch (err: any) {
                             alert("ड्यूटी स्थिति अपडेट करने में त्रुटि: " + err.message);
                           }
@@ -834,12 +844,24 @@ export default function App() {
                       <button
                         onClick={async () => {
                           const nextOnline = liveRider.onlineStatus === 'online' ? 'offline' : 'online';
+                          const nextDuty = nextOnline === 'online' ? 'on_duty' : 'off_duty';
                           try {
+                            const nowStr = new Date().toISOString();
                             await updateDoc(doc(db, 'riders', liveRider.id), { 
                               onlineStatus: nextOnline,
-                              lastActiveAt: new Date().toISOString(),
-                              lastLocationUpdate: new Date().toISOString()
+                              dutyStatus: nextDuty,
+                              lastActiveAt: nowStr,
+                              lastLocationUpdate: nowStr
                             });
+                            
+                            const authUid = (liveRider as any).userId || (liveRider as any).authUid || user?.uid;
+                            if (authUid) {
+                              updateDoc(doc(db, 'users', authUid), {
+                                onlineStatus: nextOnline,
+                                dutyStatus: nextDuty,
+                                updatedAt: nowStr
+                              }).catch(() => {});
+                            }
                           } catch (err: any) {
                             alert("ऑनलाइन स्थिति अपडेट करने में त्रुटि: " + err.message);
                           }

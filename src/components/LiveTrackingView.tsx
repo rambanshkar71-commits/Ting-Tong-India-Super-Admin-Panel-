@@ -168,12 +168,12 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
 
   // Online and offline riders
   const onlineRiders = useMemo(() => {
-    return riders.filter(r => r.onlineStatus === 'online');
+    return riders.filter(r => r.onlineStatus === 'online' || r.dutyStatus === 'on_duty');
   }, [riders]);
 
   const busyRiders = useMemo(() => {
     return riders.filter(r => 
-      r.onlineStatus === 'online' && 
+      (r.onlineStatus === 'online' || r.dutyStatus === 'on_duty') && 
       orders.some(o => o.riderId === r.id && ['accepted', 'preparing', 'ready_for_pickup', 'picked_up'].includes(o.status))
     );
   }, [riders, orders]);
@@ -1211,7 +1211,7 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
               </div>
               <div className="bg-slate-950 p-2 border border-slate-800/80 rounded-xl">
                 <p className="text-slate-500 text-[9px] uppercase font-bold">Offline</p>
-                <p className="text-base font-bold font-mono text-slate-500">{riders.filter(r => r.onlineStatus === 'offline').length}</p>
+                <p className="text-base font-bold font-mono text-slate-500">{riders.filter(r => r.onlineStatus !== 'online' && r.dutyStatus !== 'on_duty').length}</p>
               </div>
             </div>
 
@@ -1272,11 +1272,11 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
                       }`}
                     >
                       <div className="flex items-center gap-2.5">
-                        <div className={`w-2.5 h-2.5 rounded-full ${r.onlineStatus === 'online' ? 'bg-emerald-500' : 'bg-slate-600'}`}></div>
+                        <div className={`w-2.5 h-2.5 rounded-full ${r.onlineStatus === 'online' || r.dutyStatus === 'on_duty' ? 'bg-emerald-500' : 'bg-slate-600'}`}></div>
                         <div>
                           <p className="text-xs font-bold text-slate-200">{r.name}</p>
                           <p className="text-[10px] text-slate-500 font-mono font-bold uppercase">
-                            {r.dutyStatus === 'on_duty' ? 'On Duty' : 'Off Duty'}
+                            {r.dutyStatus === 'on_duty' || r.onlineStatus === 'online' ? 'On Duty' : 'Off Duty'}
                           </p>
                         </div>
                       </div>

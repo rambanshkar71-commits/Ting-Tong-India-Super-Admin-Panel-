@@ -1245,9 +1245,9 @@ export default function ManualDispatchControl({
                       {/* Status badge */}
                       <td className="py-3.5 px-4 space-y-1">
                         <div className="flex items-center gap-1.5">
-                          <span className={`w-1.5 h-1.5 rounded-full ${rider.onlineStatus === 'online' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
-                          <span className={`text-[10px] font-bold uppercase ${rider.onlineStatus === 'online' ? 'text-emerald-400' : 'text-slate-400'}`}>
-                            {rider.onlineStatus}
+                          <span className={`w-1.5 h-1.5 rounded-full ${rider.onlineStatus === 'online' || rider.dutyStatus === 'on_duty' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
+                          <span className={`text-[10px] font-bold uppercase ${rider.onlineStatus === 'online' || rider.dutyStatus === 'on_duty' ? 'text-emerald-400' : 'text-slate-400'}`}>
+                            {rider.onlineStatus === 'online' || rider.dutyStatus === 'on_duty' ? 'online' : 'offline'}
                           </span>
                         </div>
                         <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded font-mono ${
