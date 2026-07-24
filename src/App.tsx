@@ -17,7 +17,8 @@ import {
   query,
   doc,
   updateDoc,
-  addDoc
+  addDoc,
+  setDoc
 } from 'firebase/firestore';
 
 // Subcomponents
@@ -167,6 +168,50 @@ export default function App() {
     };
   }, []);
 
+  // Requirement 4: Live GPS Location & Status tracking sync when rider is logged in and active
+  useEffect(() => {
+    if (!currentRider) return;
+    const liveRider = riders.find(r => r.id === currentRider.id) || currentRider;
+    if (liveRider.dutyStatus === 'on_duty' || liveRider.onlineStatus === 'online') {
+      let watchId: number | null = null;
+      if ('geolocation' in navigator) {
+        watchId = navigator.geolocation.watchPosition(
+          (pos) => {
+            const { latitude, longitude } = pos.coords;
+            updateDoc(doc(db, 'riders', liveRider.id), {
+              lat: latitude,
+              lng: longitude,
+              lastActiveAt: new Date().toISOString(),
+              lastLocationUpdate: new Date().toISOString()
+            }).catch(err => {
+              handleFirestoreError(err, OperationType.UPDATE, 'riders/' + liveRider.id);
+            });
+          },
+          (err) => {
+            console.warn("Rider GPS watch warning:", err);
+          },
+          { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
+        );
+      }
+
+      // Continuous timestamp pulse every 15s to keep lastActiveAt fresh in Firestore
+      const interval = setInterval(() => {
+        updateDoc(doc(db, 'riders', liveRider.id), {
+          lastActiveAt: new Date().toISOString()
+        }).catch(err => {
+          handleFirestoreError(err, OperationType.UPDATE, 'riders/' + liveRider.id);
+        });
+      }, 15000);
+
+      return () => {
+        if (watchId !== null && 'geolocation' in navigator) {
+          navigator.geolocation.clearWatch(watchId);
+        }
+        clearInterval(interval);
+      };
+    }
+  }, [currentRider?.id, riders]);
+
   // Guarantee that login inputs are fully blank and free of browser auto-fill/suggestions
   useEffect(() => {
     if (!user) {
@@ -210,8 +255,31 @@ export default function App() {
     // Real-time Riders Snapshot
     const unsubRiders = onSnapshot(query(collection(db, 'riders')), (snapshot) => {
       const items: Rider[] = [];
-      snapshot.forEach(doc => {
-        items.push({ id: doc.id, ...doc.data() } as Rider);
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        const riderObj = { id: docSnap.id, ...data } as Rider;
+        items.push(riderObj);
+
+        // Requirement 7: If a rider exists in 'riders' collection but not in 'users' collection,
+        // automatically create or synchronize the corresponding 'users' document using Auth UID or rider ID with role: 'rider'.
+        const authUid = data.userId || data.authUid || docSnap.id;
+        if (authUid) {
+          const userRef = doc(db, 'users', authUid);
+          setDoc(userRef, {
+            uid: authUid,
+            riderId: docSnap.id,
+            name: data.name || 'Rider Partner',
+            email: data.email || `${docSnap.id.toLowerCase()}@tingtong.com`,
+            phone: data.phone || '',
+            role: 'rider',
+            status: data.status || 'approved',
+            onlineStatus: data.onlineStatus || 'offline',
+            dutyStatus: data.dutyStatus || 'off_duty',
+            updatedAt: new Date().toISOString()
+          }, { merge: true }).catch(err => {
+            handleFirestoreError(err, OperationType.UPDATE, 'users/' + authUid);
+          });
+        }
       });
       setRiders(items);
     }, (error) => handleFirestoreError(error, OperationType.LIST, 'riders'));
@@ -733,29 +801,58 @@ export default function App() {
                       {liveRider.walletBalance >= 0 ? '(कंपनी आपको देगी)' : '(आपको कंपनी को देना है)'}
                     </span>
                   </div>
-                  <div className="flex flex-col justify-center items-end">
-                    <span className="text-[10px] text-slate-500 block uppercase font-bold mb-1">ड्यूटी स्थिति (Status)</span>
-                    <button
-                      onClick={async () => {
-                        const nextDuty = liveRider.dutyStatus === 'on_duty' ? 'off_duty' : 'on_duty';
-                        const nextOnline = nextDuty === 'on_duty' ? 'online' : 'offline';
-                        try {
-                          await updateDoc(doc(db, 'riders', liveRider.id), { 
-                            dutyStatus: nextDuty,
-                            onlineStatus: nextOnline
-                          });
-                        } catch (err: any) {
-                          alert("ड्यूटी स्थिति अपडेट करने में त्रुटि: " + err.message);
-                        }
-                      }}
-                      className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all ${
-                        liveRider.dutyStatus === 'on_duty' 
-                          ? 'bg-emerald-600 text-slate-100 hover:bg-emerald-500' 
-                          : 'bg-slate-800 text-slate-400 hover:bg-slate-750'
-                      }`}
-                    >
-                      {liveRider.dutyStatus === 'on_duty' ? '🟢 ON DUTY (चालू)' : '🔴 OFF DUTY (बंद)'}
-                    </button>
+                  <div className="flex flex-col justify-center items-end gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] text-slate-500 uppercase font-bold">Duty:</span>
+                      <button
+                        onClick={async () => {
+                          const nextDuty = liveRider.dutyStatus === 'on_duty' ? 'off_duty' : 'on_duty';
+                          const nextOnline = nextDuty === 'on_duty' ? 'online' : 'offline';
+                          try {
+                            await updateDoc(doc(db, 'riders', liveRider.id), { 
+                              dutyStatus: nextDuty,
+                              onlineStatus: nextOnline,
+                              lastActiveAt: new Date().toISOString(),
+                              lastLocationUpdate: new Date().toISOString()
+                            });
+                          } catch (err: any) {
+                            alert("ड्यूटी स्थिति अपडेट करने में त्रुटि: " + err.message);
+                          }
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all ${
+                          liveRider.dutyStatus === 'on_duty' 
+                            ? 'bg-emerald-600 text-slate-100 hover:bg-emerald-500' 
+                            : 'bg-slate-800 text-slate-400 hover:bg-slate-750'
+                        }`}
+                      >
+                        {liveRider.dutyStatus === 'on_duty' ? '🟢 ON DUTY' : '🔴 OFF DUTY'}
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] text-slate-500 uppercase font-bold">Live:</span>
+                      <button
+                        onClick={async () => {
+                          const nextOnline = liveRider.onlineStatus === 'online' ? 'offline' : 'online';
+                          try {
+                            await updateDoc(doc(db, 'riders', liveRider.id), { 
+                              onlineStatus: nextOnline,
+                              lastActiveAt: new Date().toISOString(),
+                              lastLocationUpdate: new Date().toISOString()
+                            });
+                          } catch (err: any) {
+                            alert("ऑनलाइन स्थिति अपडेट करने में त्रुटि: " + err.message);
+                          }
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all ${
+                          liveRider.onlineStatus === 'online' 
+                            ? 'bg-sky-600 text-slate-100 hover:bg-sky-500' 
+                            : 'bg-slate-800 text-slate-400 hover:bg-slate-750'
+                        }`}
+                      >
+                        {liveRider.onlineStatus === 'online' ? '⚡ ONLINE' : '💤 OFFLINE'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

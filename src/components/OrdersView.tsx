@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { db } from '../firebase';
-import { doc, updateDoc, addDoc, collection, onSnapshot } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, addDoc, collection, onSnapshot } from 'firebase/firestore';
 import { Order, Rider } from '../types';
 import { calculateDistance, getActiveCity } from '../services/mapService';
 import ManualDispatchControl from './ManualDispatchControl';
@@ -37,8 +37,8 @@ export default function OrdersView({ orders, riders }: OrdersViewProps) {
   const [autoRefreshSecs, setAutoRefreshSecs] = useState(10);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Auto-Assign dispatcher states
-  const [isAutoAssignEnabled, setIsAutoAssignEnabled] = useState(false);
+  // Auto-Assign dispatcher states (default to ON)
+  const [isAutoAssignEnabled, setIsAutoAssignEnabled] = useState(true);
   const [autoAssignLogs, setAutoAssignLogs] = useState<string[]>([]);
 
   // Dispatch engine parameters synced with Firestore
@@ -55,6 +55,13 @@ export default function OrdersView({ orders, riders }: OrdersViewProps) {
     const unsub = onSnapshot(doc(db, 'dispatch_settings', 'global'), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
+        if (typeof data.autoAssign === 'boolean') {
+          setIsAutoAssignEnabled(data.autoAssign);
+        } else {
+          // If autoAssign property is missing in Firestore, default to true and save
+          setDoc(doc(db, 'dispatch_settings', 'global'), { autoAssign: true }, { merge: true }).catch(err => console.error(err));
+          setIsAutoAssignEnabled(true);
+        }
         setDispatchSettings({
           maxActiveOrders: Number(data.maxActiveOrders ?? 2),
           maxDailyOrders: Number(data.maxDailyOrders ?? 15),
@@ -63,6 +70,18 @@ export default function OrdersView({ orders, riders }: OrdersViewProps) {
           autoRetryInterval: Number(data.autoRetryInterval ?? 30),
           adminTimeout: Number(data.adminTimeout ?? 5)
         });
+      } else {
+        // Document doesn't exist, create default with autoAssign: true
+        setDoc(doc(db, 'dispatch_settings', 'global'), {
+          autoAssign: true,
+          maxActiveOrders: 2,
+          maxDailyOrders: 15,
+          maxDistanceRadius: 8.0,
+          maxPickupDelay: 45,
+          autoRetryInterval: 30,
+          adminTimeout: 5
+        }).catch(err => console.error(err));
+        setIsAutoAssignEnabled(true);
       }
     });
     return () => unsub();
@@ -385,6 +404,7 @@ export default function OrdersView({ orders, riders }: OrdersViewProps) {
               onClick={() => {
                 const nextVal = !isAutoAssignEnabled;
                 setIsAutoAssignEnabled(nextVal);
+                setDoc(doc(db, 'dispatch_settings', 'global'), { autoAssign: nextVal }, { merge: true }).catch(err => console.error(err));
                 addDoc(collection(db, 'audit_logs'), {
                   id: 'log_' + Date.now(),
                   userId: 'admin_usr',

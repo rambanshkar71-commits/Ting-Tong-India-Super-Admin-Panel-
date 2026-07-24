@@ -176,6 +176,7 @@ export default function ManualDispatchControl({
       } else {
         // Initialize default settings in Firestore
         setDoc(doc(db, 'dispatch_settings', 'global'), {
+          autoAssign: true,
           maxActiveOrders: 2,
           maxDailyOrders: 15,
           maxDistanceRadius: 8.0,

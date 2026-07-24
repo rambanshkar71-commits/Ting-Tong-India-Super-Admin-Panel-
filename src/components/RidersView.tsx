@@ -426,15 +426,26 @@ export default function RidersView({ riders, orders = [] }: RidersViewProps) {
                 <thead className="bg-slate-950 text-slate-400 uppercase font-mono tracking-wider">
                   <tr>
                     <th className="p-3">Rider (राइडर)</th>
+                    <th className="p-3">Duty / Online Status</th>
                     <th className="p-3">Contact (संपर्क)</th>
+                    <th className="p-3">Location & Last Active</th>
                     <th className="p-3">Status (वेरिफिकेशन)</th>
-                    <th className="p-3">COD Limit (लिमिट)</th>
-                    <th className="p-3">Wallet Bal. (पेंडिंग)</th>
+                    <th className="p-3">COD Limit</th>
+                    <th className="p-3">Wallet Bal.</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
                   {filteredRiders.map(r => {
                     const isSelected = selectedRider?.id === r.id;
+                    const lastActiveStr = (r as any).lastActiveAt || (r as any).lastLocationUpdate;
+                    let timeAgo = 'Offline';
+                    if (r.onlineStatus === 'online') {
+                      timeAgo = 'Active now';
+                    } else if (lastActiveStr) {
+                      const mins = Math.floor((Date.now() - new Date(lastActiveStr).getTime()) / 60000);
+                      timeAgo = mins < 1 ? 'Just now' : mins < 60 ? `${mins}m ago` : `${Math.floor(mins / 60)}h ago`;
+                    }
+
                     return (
                       <tr 
                         key={r.id} 
@@ -465,13 +476,38 @@ export default function RidersView({ riders, orders = [] }: RidersViewProps) {
                             </div>
                             <div>
                               <p className="font-bold text-slate-100">{r.name}</p>
-                              <p className="text-slate-500 text-[10px] font-mono">ID: {r.id}</p>
+                              <p className="text-amber-500 text-[10px] font-mono font-bold">ID: {r.id}</p>
                             </div>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex flex-col gap-1">
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider w-max ${
+                              r.dutyStatus === 'on_duty' 
+                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                                : 'bg-slate-800 text-slate-400'
+                            }`}>
+                              {r.dutyStatus === 'on_duty' ? '🟢 ON DUTY' : '🔴 OFF DUTY'}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider w-max ${
+                              r.onlineStatus === 'online' 
+                                ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' 
+                                : 'bg-slate-800 text-slate-500'
+                            }`}>
+                              {r.onlineStatus === 'online' ? '⚡ ONLINE' : '💤 OFFLINE'}
+                            </span>
                           </div>
                         </td>
                         <td className="p-3">
                           <p className="text-slate-300 font-medium">{r.phone}</p>
                           <p className="text-slate-500 text-[10px]">{r.email}</p>
+                        </td>
+                        <td className="p-3">
+                          <p className="text-slate-300 text-[11px] font-medium flex items-center gap-1">
+                            <MapPin className="w-3 h-3 text-amber-500" />
+                            {r.lat && r.lng ? `${r.lat.toFixed(4)}, ${r.lng.toFixed(4)}` : r.city || getActiveCity().name}
+                          </p>
+                          <p className="text-slate-500 text-[10px] font-mono mt-0.5">{timeAgo}</p>
                         </td>
                         <td className="p-3">
                           <span className={`px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider ${
@@ -491,7 +527,7 @@ export default function RidersView({ riders, orders = [] }: RidersViewProps) {
                   })}
                   {filteredRiders.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="p-8 text-center text-slate-500">कोई डिलेवरी पार्टनर नहीं मिला।</td>
+                      <td colSpan={7} className="p-8 text-center text-slate-500">कोई डिलेवरी पार्टनर नहीं मिला।</td>
                     </tr>
                   )}
                 </tbody>
@@ -1179,20 +1215,32 @@ export default function RidersView({ riders, orders = [] }: RidersViewProps) {
 export function LiveFleetTelemetry({ riders, orders = [] }: { riders: Rider[]; orders?: Order[] }) {
   const [selectedRider, setSelectedRider] = useState<Rider | null>(riders[0] || null);
 
-  const getBattery = (r: Rider) => {
+  const getBattery = (r: Rider & { battery?: number }) => {
+    if (r.battery !== undefined) return r.battery;
     return (r.name.charCodeAt(0) % 40) + 60;
   };
-  const getSpeed = (r: Rider) => {
+  const getSpeed = (r: Rider & { speed?: number }) => {
     if (r.onlineStatus === 'offline') return 0;
+    if (r.speed !== undefined) return r.speed;
     return (r.name.charCodeAt(1) % 30) + 15;
   };
-  const getDistance = (r: Rider) => {
+  const getDistance = (r: Rider & { totalDistance?: number }) => {
+    if (r.totalDistance !== undefined) return r.totalDistance.toFixed(1);
     return ((r.name.charCodeAt(2) % 45) + 5).toFixed(1);
   };
-  const getLastActive = (r: Rider) => {
+  const getLastActive = (r: Rider & { lastActiveAt?: string; lastLocationUpdate?: string }) => {
     if (r.onlineStatus === 'online') return 'Active now';
-    const mins = (r.name.charCodeAt(3) % 50) + 10;
-    return `${mins}m ago`;
+    const ts = r.lastActiveAt || r.lastLocationUpdate;
+    if (ts) {
+      const diffMs = Date.now() - new Date(ts).getTime();
+      if (diffMs < 60000) return 'Just now';
+      const mins = Math.floor(diffMs / 60000);
+      if (mins < 60) return `${mins}m ago`;
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return `${hrs}h ago`;
+      return `${Math.floor(hrs / 24)}d ago`;
+    }
+    return 'Offline';
   };
 
   const onlineCount = riders.filter(r => r.onlineStatus === 'online').length;

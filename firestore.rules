@@ -4,6 +4,29 @@ service cloud.firestore {
     match /{document=**} {
       allow read, write: if true;
     }
+    match /customers/{docId} { allow read, write: if true; }
+    match /restaurants/{docId} { allow read, write: if true; }
+    match /riders/{docId} { allow read, write: if true; }
+    match /orders/{docId} { allow read, write: if true; }
+    match /zones/{docId} { allow read, write: if true; }
+    match /gigs/{docId} { allow read, write: if true; }
+    match /gig_bookings/{docId} { allow read, write: if true; }
+    match /gig_notifications/{docId} { allow read, write: if true; }
+    match /dispatch_settings/{docId} { allow read, write: if true; }
+    match /dispatch_timeline/{docId} { allow read, write: if true; }
+    match /settings/{docId} { allow read, write: if true; }
+    match /system_settings/{docId} { allow read, write: if true; }
+    match /audit_logs/{docId} { allow read, write: if true; }
+    match /tickets/{docId} { allow read, write: if true; }
+    match /coupons/{docId} { allow read, write: if true; }
+    match /payment_settings/{docId} { allow read, write: if true; }
+    match /payment_employees/{docId} { allow read, write: if true; }
+    match /payment_transactions/{docId} { allow read, write: if true; }
+    match /payment_audit_logs/{docId} { allow read, write: if true; }
+    match /payment_notifications/{docId} { allow read, write: if true; }
+    match /refunds/{docId} { allow read, write: if true; }
+    match /users/{docId} { allow read, write: if true; }
   }
 }
+
 

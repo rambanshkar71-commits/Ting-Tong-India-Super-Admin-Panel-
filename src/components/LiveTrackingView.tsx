@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebase';
-import { doc, updateDoc, collection, onSnapshot, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, collection, onSnapshot, getDoc } from 'firebase/firestore';
 import { Order, Rider, Restaurant, Customer, Zone } from '../types';
 import { calculateDistance, getActiveCity, getZoneCenterForCity, getActiveMapSettings, updateMapSettingsInDb } from '../services/mapService';
 import LiveTrackingMap from './LiveTrackingMap';
@@ -77,7 +77,7 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
   const [pushNotifications, setPushNotifications] = useState<boolean>(true);
 
   // Dispatch Center Settings (stored in state, syncable with Firestore)
-  const [autoAssign, setAutoAssign] = useState<boolean>(false);
+  const [autoAssign, setAutoAssign] = useState<boolean>(true);
   const [selectedDispatchOrderId, setSelectedDispatchOrderId] = useState<string>('');
   const [dispatchHistory, setDispatchHistory] = useState<{ id: string; orderId: string; riderName: string; time: string; status: string }[]>([]);
 
@@ -129,7 +129,21 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
         const data = docSnap.data();
         if (typeof data.autoAssign === 'boolean') {
           setAutoAssign(data.autoAssign);
+        } else {
+          setDoc(doc(db, 'dispatch_settings', 'global'), { autoAssign: true }, { merge: true }).catch(err => console.warn(err));
+          setAutoAssign(true);
         }
+      } else {
+        setDoc(doc(db, 'dispatch_settings', 'global'), {
+          autoAssign: true,
+          maxActiveOrders: 2,
+          maxDailyOrders: 15,
+          maxDistanceRadius: 8.0,
+          maxPickupDelay: 45,
+          autoRetryInterval: 30,
+          adminTimeout: 5
+        }).catch(err => console.warn(err));
+        setAutoAssign(true);
       }
     }, (err) => {
       console.warn("Dispatch settings snapshot listener notice:", err);
@@ -356,9 +370,9 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
   const handleToggleAutoAssign = async () => {
     try {
       const globalDispatchRef = doc(db, 'dispatch_settings', 'global');
-      await updateDoc(globalDispatchRef, {
+      await setDoc(globalDispatchRef, {
         autoAssign: !autoAssign
-      });
+      }, { merge: true });
     } catch (err) {
       console.error("Failed to toggle global Auto Assign state:", err);
     }
