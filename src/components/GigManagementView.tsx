@@ -272,16 +272,36 @@ export default function GigManagementView() {
     );
 
     const unsubZones = onSnapshot(
-      collection(db, 'zones'),
+      collection(db, 'workZones'),
       (snapshot) => {
         const list: Zone[] = [];
         snapshot.forEach((doc) => {
-          list.push({ id: doc.id, ...doc.data() } as Zone);
+          const data = doc.data();
+          const name = data.zoneName || data.name || 'Unnamed Zone';
+          list.push({ 
+            id: doc.id, 
+            zoneId: doc.id,
+            name,
+            zoneName: name,
+            cityId: data.cityId || 'bhopal',
+            cityName: data.cityName || 'Bhopal',
+            radius: data.radius ?? 5,
+            minOrderAmount: data.minOrderAmount ?? 100,
+            maxDistance: data.maxDistance ?? 10,
+            areaCharges: data.areaCharges ?? 25,
+            active: data.active !== false,
+            status: data.status || 'active',
+            center: data.center || { lat: data.centerLat || 23.25, lng: data.centerLng || 77.4124 },
+            centerLat: data.centerLat || 23.25,
+            centerLng: data.centerLng || 77.4124,
+            polygon: data.polygon || [],
+            capacity: data.capacity || 15
+          } as Zone);
         });
         setFirestoreZones(list);
       },
       (error) => {
-        console.warn('Could not load zones list for admin gig panel:', error);
+        console.warn('Could not load workZones list for admin gig panel:', error);
       }
     );
 

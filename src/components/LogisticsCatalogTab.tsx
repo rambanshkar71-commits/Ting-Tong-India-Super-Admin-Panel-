@@ -73,10 +73,32 @@ export default function LogisticsCatalogTab({ restaurants, riders, orders, onLog
   const [assignRiderId, setAssignRiderId] = useState('');
 
   useEffect(() => {
-    const unsubZones = onSnapshot(collection(db, 'zones'), (snap) => {
-      setZones(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Zone));
+    const unsubZones = onSnapshot(collection(db, 'workZones'), (snap) => {
+      setZones(snap.docs.map(d => {
+        const data = d.data();
+        const name = data.zoneName || data.name || 'Unnamed Zone';
+        return {
+          id: d.id,
+          zoneId: d.id,
+          name,
+          zoneName: name,
+          cityId: data.cityId || 'bhopal',
+          cityName: data.cityName || 'Bhopal',
+          radius: data.radius ?? 5,
+          minOrderAmount: data.minOrderAmount ?? 100,
+          maxDistance: data.maxDistance ?? 10,
+          areaCharges: data.areaCharges ?? 25,
+          active: data.active !== false,
+          status: data.status || 'active',
+          center: data.center || { lat: data.centerLat || 23.25, lng: data.centerLng || 77.4124 },
+          centerLat: data.centerLat || 23.25,
+          centerLng: data.centerLng || 77.4124,
+          polygon: data.polygon || [],
+          capacity: data.capacity || 15
+        } as Zone;
+      }));
       setLoading(false);
-    }, (err) => console.error("Error subscribing zones in LogisticsCatalogTab:", err));
+    }, (err) => console.error("Error subscribing workZones in LogisticsCatalogTab:", err));
 
     const fetchMenus = async () => {
       try {
@@ -106,28 +128,32 @@ export default function LogisticsCatalogTab({ restaurants, riders, orders, onLog
     if (!newZoneName) return;
     try {
       const activeCity = getActiveCity();
-      const id = "zone_" + Date.now();
+      const id = "wz_" + Date.now();
       const nowIso = new Date().toISOString();
       const zn: Zone = {
         id,
+        zoneId: id,
         name: newZoneName,
+        zoneName: newZoneName,
         cityId: activeCity.id,
+        cityName: activeCity.name,
         radius: Number(newZoneRadius),
         minOrderAmount: 150,
         maxDistance: Number(newZoneRadius) * 2,
         areaCharges: Number(newZoneCharges),
         active: true,
         status: 'active',
+        center: { lat: activeCity.centerLat, lng: activeCity.centerLng },
         centerLat: activeCity.centerLat,
         centerLng: activeCity.centerLng,
         capacity: 15,
         createdAt: nowIso,
         updatedAt: nowIso
       };
-      await setDoc(doc(db, 'zones', id), zn);
+      await setDoc(doc(db, 'workZones', id), zn);
       onLogEvent('ZONE_CREATED', `Added operational delivery boundary: ${zn.name} (${zn.radius} KM)`);
       setNewZoneName('');
-      alert("New operational delivery zone registered in Firestore!");
+      alert("New work zone registered in Firestore workZones!");
     } catch (err) {
       console.error(err);
     }
@@ -135,7 +161,7 @@ export default function LogisticsCatalogTab({ restaurants, riders, orders, onLog
 
   const handleToggleZone = async (id: string, active: boolean) => {
     try {
-      await updateDoc(doc(db, 'zones', id), { active });
+      await updateDoc(doc(db, 'workZones', id), { active });
       setZones(zones.map(z => z.id === id ? { ...z, active } : z));
       onLogEvent('ZONE_TOGGLED', `Operational region ${id} status altered to: ${active}`);
     } catch (err) {
@@ -145,7 +171,7 @@ export default function LogisticsCatalogTab({ restaurants, riders, orders, onLog
 
   const handleDeleteZone = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'zones', id));
+      await deleteDoc(doc(db, 'workZones', id));
       setZones(zones.filter(z => z.id !== id));
       onLogEvent('ZONE_DELETED', `Revoked operational grid boundary lock ID: ${id}`);
     } catch (err) {

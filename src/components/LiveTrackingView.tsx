@@ -108,16 +108,35 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
   // ---------------------------------------------------------------------------
   // 2. REAL-TIME FIRESTORE BINDS
   // ---------------------------------------------------------------------------
-  // Listen to delivery zones in real-time
+  // Listen to delivery workZones in real-time
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'zones'), (snap) => {
+    const unsub = onSnapshot(collection(db, 'workZones'), (snap) => {
       const list: Zone[] = [];
       snap.forEach((doc) => {
-        list.push({ id: doc.id, ...doc.data() } as Zone);
+        const data = doc.data();
+        list.push({ 
+          id: doc.id, 
+          zoneId: doc.id,
+          name: data.zoneName || data.name || 'Unnamed Zone',
+          zoneName: data.zoneName || data.name || 'Unnamed Zone',
+          cityId: data.cityId || 'bhopal',
+          cityName: data.cityName || 'Bhopal',
+          radius: data.radius ?? 5,
+          minOrderAmount: data.minOrderAmount ?? 100,
+          maxDistance: data.maxDistance ?? 10,
+          areaCharges: data.areaCharges ?? 25,
+          active: data.active !== false,
+          status: data.status || 'active',
+          center: data.center || { lat: data.centerLat || 23.25, lng: data.centerLng || 77.4124 },
+          centerLat: data.centerLat || 23.25,
+          centerLng: data.centerLng || 77.4124,
+          polygon: data.polygon || [],
+          capacity: data.capacity || 15
+        } as Zone);
       });
       setZones(list);
     }, (err) => {
-      console.warn("Zones snapshot listener notice:", err);
+      console.warn("WorkZones snapshot listener notice:", err);
     });
     return () => unsub();
   }, []);

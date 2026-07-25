@@ -179,22 +179,47 @@ export interface Order {
   rejectedRiders?: string[]; // Array of riderIds who rejected this order
 }
 
-export interface Zone {
+export interface City {
   id: string;
   name: string;
-  cityId?: string;
+  state?: string;
+  centerLat: number;
+  centerLng: number;
+  active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PolygonPoint {
+  lat: number;
+  lng: number;
+}
+
+export interface WorkZone {
+  id: string;
+  zoneId?: string;
+  name: string;
+  zoneName?: string;
+  cityId: string;
+  cityName: string;
   radius: number; // in KM
   minOrderAmount: number;
   maxDistance: number;
   areaCharges: number;
   active: boolean;
   status?: 'active' | 'offline';
+  center?: { lat: number; lng: number } | [number, number];
   centerLat?: number;
   centerLng?: number;
+  polygon?: PolygonPoint[] | [number, number][];
+  mapData?: any;
   capacity?: number;
+  assignedRiderIds?: string[];
   createdAt?: string;
   updatedAt?: string;
 }
+
+export type Zone = WorkZone;
 
 export interface Coupon {
   id: string;

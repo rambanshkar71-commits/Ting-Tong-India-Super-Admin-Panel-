@@ -122,19 +122,36 @@
       },
       "required": ["customerId", "restaurantId", "totalAmount", "status", "paymentMethod", "paymentStatus"]
     },
-    "zone": {
-      "title": "Zone",
-      "description": "Service zones for Bhopal delivery boundaries",
+    "work_zone": {
+      "title": "WorkZone",
+      "description": "Work service zones for operational delivery boundaries",
       "type": "object",
       "properties": {
+        "zoneName": { "type": "string" },
         "name": { "type": "string" },
+        "cityId": { "type": "string" },
+        "cityName": { "type": "string" },
         "radius": { "type": "number" },
         "minOrderAmount": { "type": "number" },
         "maxDistance": { "type": "number" },
         "areaCharges": { "type": "number" },
+        "active": { "type": "boolean" },
+        "capacity": { "type": "number" }
+      },
+      "required": ["zoneName", "cityId", "radius", "active"]
+    },
+    "city": {
+      "title": "City",
+      "description": "Managed operational cities",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "state": { "type": "string" },
+        "centerLat": { "type": "number" },
+        "centerLng": { "type": "number" },
         "active": { "type": "boolean" }
       },
-      "required": ["name", "radius", "active"]
+      "required": ["name", "active"]
     },
     "coupon": {
       "title": "Coupon",
@@ -444,9 +461,13 @@
       "schema": "order",
       "description": "Live, ongoing, and completed delivery records"
     },
-    "/zones/{zoneId}": {
-      "schema": "zone",
-      "description": "Platform operation zones"
+    "/workZones/{zoneId}": {
+      "schema": "work_zone",
+      "description": "Platform operation work zones"
+    },
+    "/cities/{cityId}": {
+      "schema": "city",
+      "description": "Platform operational cities"
     },
     "/coupons/{couponId}": {
       "schema": "coupon",

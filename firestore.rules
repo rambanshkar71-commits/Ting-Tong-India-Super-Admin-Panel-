@@ -9,6 +9,8 @@ service cloud.firestore {
     match /riders/{docId} { allow read, write: if true; }
     match /orders/{docId} { allow read, write: if true; }
     match /zones/{docId} { allow read, write: if true; }
+    match /workZones/{docId} { allow read, write: if true; }
+    match /cities/{docId} { allow read, write: if true; }
     match /gigs/{docId} { allow read, write: if true; }
     match /gig_bookings/{docId} { allow read, write: if true; }
     match /gig_notifications/{docId} { allow read, write: if true; }

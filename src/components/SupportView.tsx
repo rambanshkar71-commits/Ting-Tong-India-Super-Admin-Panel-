@@ -112,9 +112,22 @@ export default function SupportView() {
       setLoading(false);
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'tickets'));
 
-    const unsubZones = onSnapshot(collection(db, 'zones'), (snap) => {
-      setZones(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Zone));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'zones'));
+    const unsubZones = onSnapshot(collection(db, 'workZones'), (snap) => {
+      setZones(snap.docs.map(d => {
+        const data = d.data();
+        const name = data.zoneName || data.name || 'Unnamed Zone';
+        return {
+          id: d.id,
+          zoneId: d.id,
+          name,
+          zoneName: name,
+          cityId: data.cityId || 'bhopal',
+          cityName: data.cityName || 'Bhopal',
+          radius: data.radius ?? 5,
+          active: data.active !== false
+        } as Zone;
+      }));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'workZones'));
 
     const unsubRestaurants = onSnapshot(collection(db, 'restaurants'), (snap) => {
       setRestaurants(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Restaurant));
