@@ -291,8 +291,8 @@ export async function saveWorkZoneToFirestore(workZone: Partial<WorkZone>): Prom
   const nowIso = new Date().toISOString();
   const id = workZone.id || "workzone_" + Date.now();
   const name = workZone.zoneName || workZone.name || "New Work Area";
-  const cLat = workZone.centerLat ?? (workZone.center?.lat || (Array.isArray(workZone.center) ? workZone.center[0] : 23.25));
-  const cLng = workZone.centerLng ?? (workZone.center?.lng || (Array.isArray(workZone.center) ? workZone.center[1] : 77.4124));
+  const cLat = workZone.centerLat ?? ((workZone.center as any)?.lat || (Array.isArray(workZone.center) ? workZone.center[0] : 23.25));
+  const cLng = workZone.centerLng ?? ((workZone.center as any)?.lng || (Array.isArray(workZone.center) ? workZone.center[1] : 77.4124));
 
   const docData: Record<string, any> = {
     id,

@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebase';
 import { doc, updateDoc, setDoc, collection, onSnapshot, getDoc } from 'firebase/firestore';
-import { Order, Rider, Restaurant, Customer, Zone } from '../types';
+import { Order, Rider, Restaurant, Customer, Zone, WorkZone } from '../types';
 import { calculateDistance, getActiveCity, getZoneCenterForCity, getActiveMapSettings, updateMapSettingsInDb } from '../services/mapService';
 import LiveTrackingMap from './LiveTrackingMap';
+import CityZoneFilter from './CityZoneFilter';
+import { getZoneForOrder, getZoneForRider } from '../utils/zoneMatching';
 import { 
   MapPin, 
   Navigation, 
@@ -54,6 +56,10 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
   const [selectedRider, setSelectedRider] = useState<Rider | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [selectedZone, setSelectedZone] = useState<string | null>(null);
+  
+  // Top Filter State
+  const [selectedCityId, setSelectedCityId] = useState<string>('all');
+  const [selectedWorkZoneId, setSelectedWorkZoneId] = useState<string>('all');
   
   // Tab/Panel selector for interactive panel
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'orders' | 'dispatch' | 'zones' | 'history'>('orders');
@@ -176,26 +182,56 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
   // Handled automatically via modern state hooks by <LiveTrackingMap />
 
   // ---------------------------------------------------------------------------
-  // 4. ACTIVE DATA AGGREGATORS
+  // 4. ACTIVE DATA AGGREGATORS & SCOPED FILTERS
   // ---------------------------------------------------------------------------
+  const scopedRiders = useMemo(() => {
+    return riders.filter(r => {
+      if (selectedCityId !== 'all' && r.cityId && r.cityId !== selectedCityId && (r.city || '').toLowerCase() !== selectedCityId.toLowerCase()) {
+        return false;
+      }
+      if (selectedWorkZoneId !== 'all') {
+        const riderZone = getZoneForRider(r, zones as any);
+        if (!riderZone || (riderZone.id !== selectedWorkZoneId && riderZone.zoneId !== selectedWorkZoneId)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [riders, selectedCityId, selectedWorkZoneId, zones]);
+
+  const scopedOrders = useMemo(() => {
+    return orders.filter(o => {
+      if (selectedCityId !== 'all' && o.cityId && o.cityId !== selectedCityId && (o.city || '').toLowerCase() !== selectedCityId.toLowerCase()) {
+        return false;
+      }
+      if (selectedWorkZoneId !== 'all') {
+        const orderZone = getZoneForOrder(o, zones as any);
+        if (!orderZone || (orderZone.id !== selectedWorkZoneId && orderZone.zoneId !== selectedWorkZoneId)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [orders, selectedCityId, selectedWorkZoneId, zones]);
+
   // Live orders in progress
   const liveOrders = useMemo(() => {
-    return orders.filter(o => 
+    return scopedOrders.filter(o => 
       ['pending', 'accepted', 'preparing', 'ready_for_pickup', 'picked_up'].includes(o.status)
     );
-  }, [orders]);
+  }, [scopedOrders]);
 
   // Online and offline riders
   const onlineRiders = useMemo(() => {
-    return riders.filter(r => r.onlineStatus === 'online' || r.dutyStatus === 'on_duty');
-  }, [riders]);
+    return scopedRiders.filter(r => r.onlineStatus === 'online' || r.dutyStatus === 'on_duty');
+  }, [scopedRiders]);
 
   const busyRiders = useMemo(() => {
-    return riders.filter(r => 
+    return scopedRiders.filter(r => 
       (r.onlineStatus === 'online' || r.dutyStatus === 'on_duty') && 
-      orders.some(o => o.riderId === r.id && ['accepted', 'preparing', 'ready_for_pickup', 'picked_up'].includes(o.status))
+      scopedOrders.some(o => o.riderId === r.id && ['accepted', 'preparing', 'ready_for_pickup', 'picked_up'].includes(o.status))
     );
-  }, [riders, orders]);
+  }, [scopedRiders, scopedOrders]);
 
   // Centralized distance calculation delegate
   const calculateDistanceDelegate = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -546,6 +582,17 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
         </div>
       </div>
 
+      {/* Dynamic Scope Filter Bar */}
+      <CityZoneFilter
+        selectedCityId={selectedCityId}
+        selectedWorkZoneId={selectedWorkZoneId}
+        onCityChange={setSelectedCityId}
+        onWorkZoneChange={setSelectedWorkZoneId}
+        workZones={zones as any}
+        onlineRidersCount={onlineRiders.length}
+        unassignedOrdersCount={liveOrders.filter(o => o.status === 'pending').length}
+      />
+
       {/* 2. GRID WORKSPACE LAYOUT */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
@@ -628,8 +675,8 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
             {/* Map Canvas itself */}
             <div className="flex-1 min-h-[500px] relative bg-slate-950">
               <LiveTrackingMap 
-                riders={riders}
-                orders={orders}
+                riders={scopedRiders}
+                orders={scopedOrders}
                 restaurants={restaurants}
                 customers={customers}
                 zones={zones}

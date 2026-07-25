@@ -1,6 +1,10 @@
-import React, { useState } from 'react';
-import { Order, Rider, Restaurant, Customer } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { db } from '../firebase';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { Order, Rider, Restaurant, Customer, WorkZone } from '../types';
 import { getActiveCity } from '../services/mapService';
+import CityZoneFilter from './CityZoneFilter';
+import { getZoneForOrder, getZoneForRider } from '../utils/zoneMatching';
 import { 
   TrendingUp, 
   ShoppingBag, 
@@ -28,44 +32,106 @@ interface DashboardViewProps {
 }
 
 export default function DashboardView({ orders, riders, restaurants, customers, onOpenLiveTracking }: DashboardViewProps) {
+  const [selectedCityId, setSelectedCityId] = useState<string>('all');
+  const [selectedWorkZoneId, setSelectedWorkZoneId] = useState<string>('all');
+  const [workZones, setWorkZones] = useState<WorkZone[]>([]);
   const [selectedRiderOnMap, setSelectedRiderOnMap] = useState<Rider | null>(null);
 
-  // 1. Calculate Core Telemetry Statistics
+  // Real-time Firestore workZones listener
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'workZones'), (snap) => {
+      const list: WorkZone[] = [];
+      snap.forEach(docSnap => {
+        const data = docSnap.data();
+        list.push({
+          id: docSnap.id,
+          zoneId: data.zoneId || docSnap.id,
+          name: data.zoneName || data.name || 'Unnamed Work Zone',
+          zoneName: data.zoneName || data.name || 'Unnamed Work Zone',
+          cityId: data.cityId || 'bhopal',
+          cityName: data.cityName || 'Bhopal',
+          radius: data.radius ?? 5,
+          active: data.active !== false,
+          status: data.status || 'active',
+          centerLat: data.centerLat || 23.25,
+          centerLng: data.centerLng || 77.4124,
+          polygon: data.polygon || [],
+          capacity: data.capacity || 15
+        } as WorkZone);
+      });
+      setWorkZones(list);
+    });
+    return () => unsub();
+  }, []);
+
+  // Filter riders by selected city and work zone
+  const scopedRiders = useMemo(() => {
+    return riders.filter(r => {
+      if (selectedCityId !== 'all' && r.cityId && r.cityId !== selectedCityId && (r.city || '').toLowerCase() !== selectedCityId.toLowerCase()) {
+        return false;
+      }
+      if (selectedWorkZoneId !== 'all') {
+        const riderZone = getZoneForRider(r, workZones);
+        if (!riderZone || (riderZone.id !== selectedWorkZoneId && riderZone.zoneId !== selectedWorkZoneId)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [riders, selectedCityId, selectedWorkZoneId, workZones]);
+
+  // Filter orders by selected city and work zone
+  const scopedOrders = useMemo(() => {
+    return orders.filter(o => {
+      if (selectedCityId !== 'all' && o.cityId && o.cityId !== selectedCityId && (o.city || '').toLowerCase() !== selectedCityId.toLowerCase()) {
+        return false;
+      }
+      if (selectedWorkZoneId !== 'all') {
+        const orderZone = getZoneForOrder(o, workZones);
+        if (!orderZone || (orderZone.id !== selectedWorkZoneId && orderZone.zoneId !== selectedWorkZoneId)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [orders, selectedCityId, selectedWorkZoneId, workZones]);
+
+  // 1. Calculate Core Telemetry Statistics based on Scoped Data
   const todayStart = new Date();
   todayStart.setHours(0,0,0,0);
 
-  const todayOrders = orders.filter(o => new Date(o.createdAt) >= todayStart);
+  const todayOrders = scopedOrders.filter(o => new Date(o.createdAt) >= todayStart);
   
-  const liveOrders = orders.filter(o => 
+  const liveOrders = scopedOrders.filter(o => 
     o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'refunded'
   );
   
-  const completedOrders = orders.filter(o => o.status === 'delivered');
-  const cancelledOrders = orders.filter(o => o.status === 'cancelled');
-  const pendingOrders = orders.filter(o => o.status === 'pending');
+  const completedOrders = scopedOrders.filter(o => o.status === 'delivered');
+  const cancelledOrders = scopedOrders.filter(o => o.status === 'cancelled');
+  const pendingOrders = scopedOrders.filter(o => o.status === 'pending');
 
   const todayRevenue = todayOrders
     .filter(o => o.paymentStatus === 'paid' && o.status !== 'cancelled')
     .reduce((sum, o) => sum + o.totalAmount, 0);
 
-  const totalPlatformCommission = orders
+  const totalPlatformCommission = scopedOrders
     .filter(o => o.paymentStatus === 'paid' && o.status !== 'cancelled')
     .reduce((sum, o) => sum + o.platformCommission, 0);
 
-  const totalRestaurantEarnings = orders
+  const totalRestaurantEarnings = scopedOrders
     .filter(o => o.paymentStatus === 'paid' && o.status !== 'cancelled')
     .reduce((sum, o) => sum + o.restaurantEarnings, 0);
 
-  const totalRiderEarnings = orders
+  const totalRiderEarnings = scopedOrders
     .filter(o => o.paymentStatus === 'paid' && o.status !== 'cancelled')
     .reduce((sum, o) => sum + o.riderEarnings, 0);
 
   const activeCustomersCount = customers.filter(c => c.status === 'active').length;
   const activeRestaurantsCount = restaurants.filter(r => r.status === 'approved').length;
-  const activeRidersCount = riders.filter(r => r.status === 'approved').length;
+  const activeRidersCount = scopedRiders.filter(r => r.status === 'approved').length;
   
-  const onlineRiders = riders.filter(r => r.onlineStatus === 'online' && r.status === 'approved');
-  const offlineRiders = riders.filter(r => r.onlineStatus === 'offline' && r.status === 'approved');
+  const onlineRiders = scopedRiders.filter(r => (r.onlineStatus === 'online' || r.dutyStatus === 'on_duty') && r.status === 'approved');
+  const offlineRiders = scopedRiders.filter(r => r.onlineStatus === 'offline' && r.dutyStatus !== 'on_duty' && r.status === 'approved');
 
   const activeCity = getActiveCity();
 
@@ -115,6 +181,17 @@ export default function DashboardView({ orders, riders, restaurants, customers, 
           <span className="text-slate-300 font-medium">Live Gateway Node: Online</span>
         </div>
       </div>
+
+      {/* Top Scope Filter */}
+      <CityZoneFilter
+        selectedCityId={selectedCityId}
+        selectedWorkZoneId={selectedWorkZoneId}
+        onCityChange={setSelectedCityId}
+        onWorkZoneChange={setSelectedWorkZoneId}
+        workZones={workZones}
+        onlineRidersCount={onlineRiders.length}
+        unassignedOrdersCount={pendingOrders.length}
+      />
 
       {/* Grid 1: Today's High-Value Counters */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -227,15 +304,15 @@ export default function DashboardView({ orders, riders, restaurants, customers, 
               </div>
               <div className="bg-slate-950/50 border border-slate-800/60 p-3 rounded-xl">
                 <p className="text-slate-500 text-[10px] uppercase font-extrabold tracking-wider mb-1">Active Deliveries</p>
-                <p className="text-xl font-bold font-mono text-amber-500">{orders.filter(o => ['accepted', 'preparing', 'ready_for_pickup', 'picked_up'].includes(o.status)).length}</p>
+                <p className="text-xl font-bold font-mono text-amber-500">{scopedOrders.filter(o => ['accepted', 'preparing', 'ready_for_pickup', 'picked_up'].includes(o.status)).length}</p>
               </div>
               <div className="bg-slate-950/50 border border-slate-800/60 p-3 rounded-xl">
                 <p className="text-slate-500 text-[10px] uppercase font-extrabold tracking-wider mb-1">Pending Orders</p>
-                <p className="text-xl font-bold font-mono text-rose-400">{orders.filter(o => o.status === 'pending').length}</p>
+                <p className="text-xl font-bold font-mono text-rose-400">{scopedOrders.filter(o => o.status === 'pending').length}</p>
               </div>
               <div className="bg-slate-950/50 border border-slate-800/60 p-3 rounded-xl">
                 <p className="text-slate-500 text-[10px] uppercase font-extrabold tracking-wider mb-1">In Progress</p>
-                <p className="text-xl font-bold font-mono text-sky-400">{orders.filter(o => ['accepted', 'preparing', 'ready_for_pickup'].includes(o.status)).length}</p>
+                <p className="text-xl font-bold font-mono text-sky-400">{scopedOrders.filter(o => ['accepted', 'preparing', 'ready_for_pickup'].includes(o.status)).length}</p>
               </div>
             </div>
 

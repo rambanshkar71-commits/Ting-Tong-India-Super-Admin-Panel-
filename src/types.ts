@@ -109,6 +109,9 @@ export interface Rider {
   // New Hindi panel compliant fields
   address?: string;
   city?: string;
+  cityId?: string;
+  workZoneId?: string;
+  workZone?: string;
   state?: string;
   pinCode?: string;
   dob?: string;
@@ -170,6 +173,10 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
   deliveryAddress: string;
+  cityId?: string;
+  city?: string;
+  workZoneId?: string;
+  workZone?: string;
   deliveryLat: number;
   deliveryLng: number;
   restaurantLat: number;

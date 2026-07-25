@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebase';
 import { doc, updateDoc, setDoc, addDoc, collection, onSnapshot } from 'firebase/firestore';
-import { Order, Rider } from '../types';
+import { Order, Rider, WorkZone } from '../types';
 import { calculateDistance, getActiveCity } from '../services/mapService';
 import ManualDispatchControl from './ManualDispatchControl';
+import CityZoneFilter from './CityZoneFilter';
+import { getZoneForOrder, getZoneForRider, isRiderInOrderWorkZone } from '../utils/zoneMatching';
 import { 
   ShoppingBag, 
   Search, 
@@ -29,6 +31,10 @@ interface OrdersViewProps {
 }
 
 export default function OrdersView({ orders, riders }: OrdersViewProps) {
+  const [selectedCityId, setSelectedCityId] = useState<string>('all');
+  const [selectedWorkZoneId, setSelectedWorkZoneId] = useState<string>('all');
+  const [workZones, setWorkZones] = useState<WorkZone[]>([]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showRiderAssignModal, setShowRiderAssignModal] = useState<string | null>(null); // contains orderId
@@ -40,6 +46,75 @@ export default function OrdersView({ orders, riders }: OrdersViewProps) {
   // Auto-Assign dispatcher states (default to ON)
   const [isAutoAssignEnabled, setIsAutoAssignEnabled] = useState(true);
   const [autoAssignLogs, setAutoAssignLogs] = useState<string[]>([]);
+
+  // Real-time Firestore workZones listener
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'workZones'), (snap) => {
+      const list: WorkZone[] = [];
+      snap.forEach(docSnap => {
+        const data = docSnap.data();
+        list.push({
+          id: docSnap.id,
+          zoneId: data.zoneId || docSnap.id,
+          name: data.zoneName || data.name || 'Unnamed Work Zone',
+          zoneName: data.zoneName || data.name || 'Unnamed Work Zone',
+          cityId: data.cityId || 'bhopal',
+          cityName: data.cityName || 'Bhopal',
+          radius: data.radius ?? 5,
+          active: data.active !== false,
+          status: data.status || 'active',
+          centerLat: data.centerLat || 23.25,
+          centerLng: data.centerLng || 77.4124,
+          polygon: data.polygon || [],
+          capacity: data.capacity || 15
+        } as WorkZone);
+      });
+      setWorkZones(list);
+    });
+    return () => unsub();
+  }, []);
+
+  // Filtered riders and orders based on top filter selections
+  const scopedRiders = useMemo(() => {
+    return riders.filter(r => {
+      if (selectedCityId !== 'all' && r.cityId && r.cityId !== selectedCityId && (r.city || '').toLowerCase() !== selectedCityId.toLowerCase()) {
+        return false;
+      }
+      if (selectedWorkZoneId !== 'all') {
+        const riderZone = getZoneForRider(r, workZones);
+        if (!riderZone || (riderZone.id !== selectedWorkZoneId && riderZone.zoneId !== selectedWorkZoneId)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [riders, selectedCityId, selectedWorkZoneId, workZones]);
+
+  const scopedOrders = useMemo(() => {
+    return orders.filter(o => {
+      if (selectedCityId !== 'all' && o.cityId && o.cityId !== selectedCityId && (o.city || '').toLowerCase() !== selectedCityId.toLowerCase()) {
+        return false;
+      }
+      if (selectedWorkZoneId !== 'all') {
+        const orderZone = getZoneForOrder(o, workZones);
+        if (!orderZone || (orderZone.id !== selectedWorkZoneId && orderZone.zoneId !== selectedWorkZoneId)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [orders, selectedCityId, selectedWorkZoneId, workZones]);
+
+  // Recommended Zone Radius text dynamically derived from workZones collection
+  const recommendedZoneText = useMemo(() => {
+    if (selectedWorkZoneId !== 'all') {
+      const activeZ = workZones.find(z => z.id === selectedWorkZoneId || z.zoneId === selectedWorkZoneId);
+      if (activeZ) return `${activeZ.name} (${activeZ.radius} km)`;
+    }
+    const firstActive = workZones.find(z => z.active !== false);
+    if (firstActive) return `${firstActive.name} (${firstActive.radius} km)`;
+    return 'All Work Zones (5.0 km)';
+  }, [workZones, selectedWorkZoneId]);
 
   // Dispatch engine parameters synced with Firestore
   const [dispatchSettings, setDispatchSettings] = React.useState({
@@ -245,7 +320,7 @@ export default function OrdersView({ orders, riders }: OrdersViewProps) {
   }, [orders, riders, isAutoAssignEnabled, dispatchSettings]);
 
   // Filter orders by search
-  const filteredOrders = orders.filter(o => 
+  const filteredOrders = scopedOrders.filter(o => 
     o.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
     o.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     o.restaurantName.toLowerCase().includes(searchTerm.toLowerCase())
@@ -425,19 +500,30 @@ export default function OrdersView({ orders, riders }: OrdersViewProps) {
           </div>
         </div>
 
+        {/* Scope Filter */}
+        <CityZoneFilter
+          selectedCityId={selectedCityId}
+          selectedWorkZoneId={selectedWorkZoneId}
+          onCityChange={setSelectedCityId}
+          onWorkZoneChange={setSelectedWorkZoneId}
+          workZones={workZones}
+          onlineRidersCount={scopedRiders.filter(r => r.onlineStatus === 'online' || r.dutyStatus === 'on_duty').length}
+          unassignedOrdersCount={scopedOrders.filter(o => o.status === 'pending').length}
+        />
+
         {/* Live Matching Statistics Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
           <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-850">
             <span className="text-slate-500 block font-mono text-[9px] uppercase font-bold">Online Riders Range</span>
-            <span className="text-sm font-bold text-slate-200 font-mono mt-0.5 block">{activeRiders.length} Available</span>
+            <span className="text-sm font-bold text-slate-200 font-mono mt-0.5 block">{scopedRiders.filter(r => r.onlineStatus === 'online' || r.dutyStatus === 'on_duty').length} Available</span>
           </div>
           <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-850">
             <span className="text-slate-500 block font-mono text-[9px] uppercase font-bold">Unassigned Queue</span>
-            <span className="text-sm font-bold text-amber-500 font-mono mt-0.5 block">{orders.filter(o => o.status === 'pending').length} Orders</span>
+            <span className="text-sm font-bold text-amber-500 font-mono mt-0.5 block">{scopedOrders.filter(o => o.status === 'pending').length} Orders</span>
           </div>
           <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-850">
             <span className="text-slate-500 block font-mono text-[9px] uppercase font-bold">Recommended Zone Radius</span>
-            <span className="text-sm font-bold text-indigo-400 font-mono mt-0.5 block">Arera & MP Nagar (5.0km)</span>
+            <span className="text-sm font-bold text-indigo-400 font-mono mt-0.5 block">{recommendedZoneText}</span>
           </div>
           <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-850">
             <span className="text-slate-500 block font-mono text-[9px] uppercase font-bold">Dispatcher Latency</span>
@@ -467,8 +553,8 @@ export default function OrdersView({ orders, riders }: OrdersViewProps) {
       </div>
 
       <ManualDispatchControl 
-        orders={orders} 
-        riders={riders} 
+        orders={scopedOrders} 
+        riders={scopedRiders} 
         parentSelectedOrderId={selectedOrder?.id || ''}
         onSelectOrderId={(orderId) => {
           const ord = orders.find(o => o.id === orderId);
