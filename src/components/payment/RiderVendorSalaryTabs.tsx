@@ -284,11 +284,17 @@ export default function RiderVendorSalaryTabs({
                           </div>
                         </td>
                         <td className="p-4">
-                          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${
-                            r.dutyStatus === 'on_duty' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-400'
-                          }`}>
-                            {r.dutyStatus === 'on_duty' ? 'On Duty' : 'Off Duty'}
-                          </span>
+                          {(() => {
+                            const dutyStatus = (r.dutyStatus || '').toUpperCase();
+                            const isOnDuty = dutyStatus === 'ON_DUTY';
+                            return (
+                              <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${
+                                isOnDuty ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-400'
+                              }`}>
+                                {isOnDuty ? 'On Duty' : 'Off Duty'}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="p-4">
                           <span className={`font-bold font-mono text-sm block ${r.walletBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>

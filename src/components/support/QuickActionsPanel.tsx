@@ -571,16 +571,26 @@ export default function QuickActionsPanel({
                     <h3 className="text-base font-black text-slate-200">{activeRider.name}</h3>
                     <p className="text-xs text-slate-500 font-mono">ID: {activeRider.id}</p>
                     <div className="flex gap-2 mt-1">
-                      <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${
-                        activeRider.dutyStatus === 'on_duty' ? 'bg-emerald-500/25 text-emerald-400' : 'bg-slate-800 text-slate-400'
-                      }`}>
-                        {activeRider.dutyStatus === 'on_duty' ? 'ON DUTY' : 'OFF DUTY'}
-                      </span>
-                      <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${
-                        activeRider.onlineStatus === 'online' ? 'bg-emerald-500/25 text-emerald-400' : 'bg-slate-800 text-slate-400'
-                      }`}>
-                        {activeRider.onlineStatus}
-                      </span>
+                      {(() => {
+                        const dutyStatus = (activeRider.dutyStatus || '').toUpperCase();
+                        const onlineStatus = (activeRider.onlineStatus || '').toUpperCase();
+                        const isOnDuty = dutyStatus === 'ON_DUTY';
+                        const isOnline = onlineStatus === 'ONLINE';
+                        return (
+                          <>
+                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${
+                              isOnDuty ? 'bg-emerald-500/25 text-emerald-400' : 'bg-slate-800 text-slate-400'
+                            }`}>
+                              {isOnDuty ? 'ON DUTY' : 'OFF DUTY'}
+                            </span>
+                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${
+                              isOnline ? 'bg-emerald-500/25 text-emerald-400' : 'bg-slate-800 text-slate-400'
+                            }`}>
+                              {activeRider.onlineStatus}
+                            </span>
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>

@@ -135,7 +135,11 @@ export default function LiveTrackingMap({
 
   // 1. Check if live tracking data exists
   const hasLiveTrackingData = useMemo(() => {
-    const onlineRiders = riders.filter(r => r.onlineStatus === 'online' || r.dutyStatus === 'on_duty');
+    const onlineRiders = riders.filter(r => {
+      const onlineStatus = (r.onlineStatus || '').toUpperCase();
+      const dutyStatus = (r.dutyStatus || '').toUpperCase();
+      return onlineStatus === 'ONLINE' || dutyStatus === 'ON_DUTY';
+    });
     return onlineRiders.length > 0 && onlineRiders.some(r => typeof r.lat === 'number' && typeof r.lng === 'number' && r.lat !== 0 && r.lng !== 0);
   }, [riders]);
 
@@ -287,7 +291,8 @@ export default function LiveTrackingMap({
     isBreachingBoundary?: boolean
   ) => {
     const batteryLevel = rider.walletBalance ? (50 + Math.floor(rider.walletBalance % 45)) : 88;
-    const dutyStr = rider.dutyStatus === 'on_duty' ? '🟢 ON DUTY' : '🔴 OFF DUTY';
+    const dutyStatus = (rider.dutyStatus || '').toUpperCase();
+    const dutyStr = dutyStatus === 'ON_DUTY' ? '🟢 ON DUTY' : '🔴 OFF DUTY';
 
     let boundaryStatusHtml = '';
     if (assignedZone && typeof currentDist === 'number') {
@@ -497,7 +502,11 @@ export default function LiveTrackingMap({
           ]);
         }
 
-        const ridersInZone = riders.filter(r => (r.onlineStatus === 'online' || r.dutyStatus === 'on_duty') && calculateDistance(r.lat, r.lng, center[0], center[1]) <= z.radius).length;
+        const ridersInZone = riders.filter(r => {
+          const onlineStatus = (r.onlineStatus || '').toUpperCase();
+          const dutyStatus = (r.dutyStatus || '').toUpperCase();
+          return (onlineStatus === 'ONLINE' || dutyStatus === 'ON_DUTY') && calculateDistance(r.lat, r.lng, center[0], center[1]) <= z.radius;
+        }).length;
         const ordersInZone = orders.filter(o => ['accepted', 'preparing', 'ready_for_pickup', 'picked_up'].includes(o.status) && calculateDistance(o.deliveryLat, o.deliveryLng, center[0], center[1]) <= z.radius).length;
         const coverageText = ridersInZone === 0 ? 'CRITICAL DEMAND' : (ridersInZone < 2 ? 'MODERATE DEPTH' : 'OPTIMAL GRID');
 
@@ -536,7 +545,11 @@ export default function LiveTrackingMap({
     // Filter and collect riders
     if (filterRiders) {
       riders
-        .filter(r => r.onlineStatus === 'online' || r.dutyStatus === 'on_duty')
+        .filter(r => {
+          const onlineStatus = (r.onlineStatus || '').toUpperCase();
+          const dutyStatus = (r.dutyStatus || '').toUpperCase();
+          return onlineStatus === 'ONLINE' || dutyStatus === 'ON_DUTY';
+        })
         .filter(r => typeof r.lat === 'number' && typeof r.lng === 'number' && r.lat !== 0 && r.lng !== 0)
         .forEach(r => {
           markerItems.push({

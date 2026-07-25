@@ -182,11 +182,11 @@ export default function OrdersView({ orders, riders }: OrdersViewProps) {
     if (!order) return { success: false, message: "Order not found." };
 
     // 1. Get approved, online, on-duty riders
-    const activeRiders = riders.filter(r => 
-      r.status === 'approved' && 
-      r.onlineStatus === 'online' &&
-      r.dutyStatus === 'on_duty'
-    );
+    const activeRiders = riders.filter(r => {
+      const onlineStatus = (r.onlineStatus || '').toUpperCase();
+      const dutyStatus = (r.dutyStatus || '').toUpperCase();
+      return r.status === 'approved' && onlineStatus === 'ONLINE' && dutyStatus === 'ON_DUTY';
+    });
 
     if (activeRiders.length === 0) {
       return { success: false, message: `No active on-duty fleet partners in ${getActiveCity().name} for Order #${orderId}.` };
@@ -411,7 +411,10 @@ export default function OrdersView({ orders, riders }: OrdersViewProps) {
     }
   };
 
-  const activeRiders = riders.filter(r => r.status === 'approved' && r.onlineStatus === 'online');
+  const activeRiders = riders.filter(r => {
+    const onlineStatus = (r.onlineStatus || '').toUpperCase();
+    return r.status === 'approved' && onlineStatus === 'ONLINE';
+  });
 
   return (
     <div className="space-y-6 text-slate-100 animate-fade-in">
@@ -507,7 +510,11 @@ export default function OrdersView({ orders, riders }: OrdersViewProps) {
           onCityChange={setSelectedCityId}
           onWorkZoneChange={setSelectedWorkZoneId}
           workZones={workZones}
-          onlineRidersCount={scopedRiders.filter(r => r.onlineStatus === 'online' || r.dutyStatus === 'on_duty').length}
+          onlineRidersCount={scopedRiders.filter(r => {
+            const onlineStatus = (r.onlineStatus || '').toUpperCase();
+            const dutyStatus = (r.dutyStatus || '').toUpperCase();
+            return onlineStatus === 'ONLINE' || dutyStatus === 'ON_DUTY';
+          }).length}
           unassignedOrdersCount={scopedOrders.filter(o => o.status === 'pending').length}
         />
 
@@ -515,7 +522,11 @@ export default function OrdersView({ orders, riders }: OrdersViewProps) {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
           <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-850">
             <span className="text-slate-500 block font-mono text-[9px] uppercase font-bold">Online Riders Range</span>
-            <span className="text-sm font-bold text-slate-200 font-mono mt-0.5 block">{scopedRiders.filter(r => r.onlineStatus === 'online' || r.dutyStatus === 'on_duty').length} Available</span>
+            <span className="text-sm font-bold text-slate-200 font-mono mt-0.5 block">{scopedRiders.filter(r => {
+              const onlineStatus = (r.onlineStatus || '').toUpperCase();
+              const dutyStatus = (r.dutyStatus || '').toUpperCase();
+              return onlineStatus === 'ONLINE' || dutyStatus === 'ON_DUTY';
+            }).length} Available</span>
           </div>
           <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-850">
             <span className="text-slate-500 block font-mono text-[9px] uppercase font-bold">Unassigned Queue</span>

@@ -376,7 +376,7 @@ export default function LiveChatCenter({
                     {sess.userName.charAt(0)}
                   </div>
                   <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-slate-900 ${
-                    sess.onlineStatus === 'online' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'
+                    (sess.onlineStatus || '').toUpperCase() === 'ONLINE' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'
                   }`} />
                 </div>
 

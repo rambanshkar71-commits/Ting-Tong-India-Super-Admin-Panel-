@@ -183,7 +183,9 @@ export default function App() {
   useEffect(() => {
     if (!currentRider) return;
     const liveRider = riders.find(r => r.id === currentRider.id) || currentRider;
-    if (liveRider.dutyStatus === 'on_duty' || liveRider.onlineStatus === 'online') {
+    const dutyStatus = (liveRider.dutyStatus || '').toUpperCase();
+    const onlineStatus = (liveRider.onlineStatus || '').toUpperCase();
+    if (dutyStatus === 'ON_DUTY' || onlineStatus === 'ONLINE') {
       let watchId: number | null = null;
       if ('geolocation' in navigator) {
         watchId = navigator.geolocation.watchPosition(
@@ -817,7 +819,8 @@ export default function App() {
                       <span className="text-[9px] text-slate-500 uppercase font-bold">Duty:</span>
                       <button
                         onClick={async () => {
-                          const nextDuty = liveRider.dutyStatus === 'on_duty' ? 'off_duty' : 'on_duty';
+                          const liveDuty = (liveRider.dutyStatus || '').toUpperCase();
+                          const nextDuty = liveDuty === 'ON_DUTY' ? 'off_duty' : 'on_duty';
                           const nextOnline = nextDuty === 'on_duty' ? 'online' : 'offline';
                           try {
                             const nowStr = new Date().toISOString();
@@ -841,12 +844,12 @@ export default function App() {
                           }
                         }}
                         className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all ${
-                          liveRider.dutyStatus === 'on_duty' 
+                          (liveRider.dutyStatus || '').toUpperCase() === 'ON_DUTY' 
                             ? 'bg-emerald-600 text-slate-100 hover:bg-emerald-500' 
                             : 'bg-slate-800 text-slate-400 hover:bg-slate-750'
                         }`}
                       >
-                        {liveRider.dutyStatus === 'on_duty' ? '🟢 ON DUTY' : '🔴 OFF DUTY'}
+                        {(liveRider.dutyStatus || '').toUpperCase() === 'ON_DUTY' ? '🟢 ON DUTY' : '🔴 OFF DUTY'}
                       </button>
                     </div>
 
@@ -854,7 +857,8 @@ export default function App() {
                       <span className="text-[9px] text-slate-500 uppercase font-bold">Live:</span>
                       <button
                         onClick={async () => {
-                          const nextOnline = liveRider.onlineStatus === 'online' ? 'offline' : 'online';
+                          const liveOnline = (liveRider.onlineStatus || '').toUpperCase();
+                          const nextOnline = liveOnline === 'ONLINE' ? 'offline' : 'online';
                           const nextDuty = nextOnline === 'online' ? 'on_duty' : 'off_duty';
                           try {
                             const nowStr = new Date().toISOString();
@@ -878,12 +882,12 @@ export default function App() {
                           }
                         }}
                         className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all ${
-                          liveRider.onlineStatus === 'online' 
+                          (liveRider.onlineStatus || '').toUpperCase() === 'ONLINE' 
                             ? 'bg-sky-600 text-slate-100 hover:bg-sky-500' 
                             : 'bg-slate-800 text-slate-400 hover:bg-slate-750'
                         }`}
                       >
-                        {liveRider.onlineStatus === 'online' ? '⚡ ONLINE' : '💤 OFFLINE'}
+                        {(liveRider.onlineStatus || '').toUpperCase() === 'ONLINE' ? '⚡ ONLINE' : '💤 OFFLINE'}
                       </button>
                     </div>
                   </div>

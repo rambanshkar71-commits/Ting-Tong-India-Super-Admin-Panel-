@@ -223,14 +223,20 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
 
   // Online and offline riders
   const onlineRiders = useMemo(() => {
-    return scopedRiders.filter(r => r.onlineStatus === 'online' || r.dutyStatus === 'on_duty');
+    return scopedRiders.filter(r => {
+      const onlineStatus = (r.onlineStatus || '').toUpperCase();
+      const dutyStatus = (r.dutyStatus || '').toUpperCase();
+      return onlineStatus === 'ONLINE' || dutyStatus === 'ON_DUTY';
+    });
   }, [scopedRiders]);
 
   const busyRiders = useMemo(() => {
-    return scopedRiders.filter(r => 
-      (r.onlineStatus === 'online' || r.dutyStatus === 'on_duty') && 
-      scopedOrders.some(o => o.riderId === r.id && ['accepted', 'preparing', 'ready_for_pickup', 'picked_up'].includes(o.status))
-    );
+    return scopedRiders.filter(r => {
+      const onlineStatus = (r.onlineStatus || '').toUpperCase();
+      const dutyStatus = (r.dutyStatus || '').toUpperCase();
+      return (onlineStatus === 'ONLINE' || dutyStatus === 'ON_DUTY') && 
+        scopedOrders.some(o => o.riderId === r.id && ['accepted', 'preparing', 'ready_for_pickup', 'picked_up'].includes(o.status));
+    });
   }, [scopedRiders, scopedOrders]);
 
   // Centralized distance calculation delegate
@@ -331,17 +337,20 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
     orders.forEach(o => {
       if (o.riderId && ['accepted', 'preparing', 'ready_for_pickup', 'picked_up'].includes(o.status)) {
         const rider = riders.find(r => r.id === o.riderId);
-        if (rider && rider.onlineStatus === 'offline') {
-          alerts.push({
-            id: `alert-offline-${o.id}`,
-            type: 'Rider Offline',
-            title: `Rider ${rider.name} Offline`,
-            message: `Rider is holding Order ${o.id.substring(0, 8)} but disconnected.`,
-            severity: 'critical',
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            riderId: rider.id,
-            orderId: o.id
-          });
+        if (rider) {
+          const onlineStatus = (rider.onlineStatus || '').toUpperCase();
+          if (onlineStatus === 'OFFLINE') {
+            alerts.push({
+              id: `alert-offline-${o.id}`,
+              type: 'Rider Offline',
+              title: `Rider ${rider.name} Offline`,
+              message: `Rider is holding Order ${o.id.substring(0, 8)} but disconnected.`,
+              severity: 'critical',
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              riderId: rider.id,
+              orderId: o.id
+            });
+          }
         }
       }
     });
@@ -470,14 +479,15 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
         ['accepted', 'preparing', 'ready_for_pickup', 'picked_up'].includes(o.status)
       );
 
+      const onlineStatus = (r.onlineStatus || '').toUpperCase();
       if (riderFilterStatus === 'online') {
-        return matchesSearch && r.onlineStatus === 'online';
+        return matchesSearch && onlineStatus === 'ONLINE';
       }
       if (riderFilterStatus === 'offline') {
-        return matchesSearch && r.onlineStatus === 'offline';
+        return matchesSearch && onlineStatus === 'OFFLINE';
       }
       if (riderFilterStatus === 'busy') {
-        return matchesSearch && r.onlineStatus === 'online' && isRiderBusy;
+        return matchesSearch && onlineStatus === 'ONLINE' && isRiderBusy;
       }
       return matchesSearch;
     });
@@ -1266,7 +1276,7 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
               </div>
               <div className="bg-slate-950 p-2 border border-slate-800/80 rounded-xl">
                 <p className="text-slate-500 text-[9px] uppercase font-bold">Offline</p>
-                <p className="text-base font-bold font-mono text-slate-500">{riders.filter(r => r.onlineStatus !== 'online' && r.dutyStatus !== 'on_duty').length}</p>
+                <p className="text-base font-bold font-mono text-slate-500">{riders.filter(r => (r.onlineStatus || '').toUpperCase() !== 'ONLINE' && (r.dutyStatus || '').toUpperCase() !== 'ON_DUTY').length}</p>
               </div>
             </div>
 
@@ -1316,6 +1326,9 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
                     o.riderId === r.id && 
                     ['accepted', 'preparing', 'ready_for_pickup', 'picked_up'].includes(o.status)
                   );
+                  const onlineStatus = (r.onlineStatus || '').toUpperCase();
+                  const dutyStatus = (r.dutyStatus || '').toUpperCase();
+                  const isOnlineOrOnDuty = onlineStatus === 'ONLINE' || dutyStatus === 'ON_DUTY';
                   return (
                     <div 
                       key={r.id}
@@ -1327,11 +1340,11 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
                       }`}
                     >
                       <div className="flex items-center gap-2.5">
-                        <div className={`w-2.5 h-2.5 rounded-full ${r.onlineStatus === 'online' || r.dutyStatus === 'on_duty' ? 'bg-emerald-500' : 'bg-slate-600'}`}></div>
+                        <div className={`w-2.5 h-2.5 rounded-full ${isOnlineOrOnDuty ? 'bg-emerald-500' : 'bg-slate-600'}`}></div>
                         <div>
                           <p className="text-xs font-bold text-slate-200">{r.name}</p>
                           <p className="text-[10px] text-slate-500 font-mono font-bold uppercase">
-                            {r.dutyStatus === 'on_duty' || r.onlineStatus === 'online' ? 'On Duty' : 'Off Duty'}
+                            {isOnlineOrOnDuty ? 'On Duty' : 'Off Duty'}
                           </p>
                         </div>
                       </div>

@@ -842,7 +842,11 @@ export default function AreaManagementView() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {workZones.map(wz => {
               const assignedRiders = riders.filter(r => (wz.assignedRiderIds || []).includes(r.id) || (r.city || '').toLowerCase() === wz.cityName.toLowerCase());
-              const onlineRiders = assignedRiders.filter(r => r.onlineStatus === 'online' || r.dutyStatus === 'on_duty');
+              const onlineRiders = assignedRiders.filter(r => {
+                const onlineStatus = (r.onlineStatus || '').toUpperCase();
+                const dutyStatus = (r.dutyStatus || '').toUpperCase();
+                return onlineStatus === 'ONLINE' || dutyStatus === 'ON_DUTY';
+              });
               const capacity = wz.capacity || 15;
               const coverageRatio = onlineRiders.length / capacity;
 
@@ -883,7 +887,7 @@ export default function AreaManagementView() {
                     <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
                       {assignedRiders.map(r => (
                         <span key={r.id} className="bg-slate-950 border border-slate-800 text-slate-300 text-[11px] px-2.5 py-1 rounded-lg flex items-center gap-1.5">
-                          <span className={`w-2 h-2 rounded-full ${r.onlineStatus === 'online' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`}></span>
+                          <span className={`w-2 h-2 rounded-full ${(r.onlineStatus || '').toUpperCase() === 'ONLINE' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`}></span>
                           {r.name}
                         </span>
                       ))}

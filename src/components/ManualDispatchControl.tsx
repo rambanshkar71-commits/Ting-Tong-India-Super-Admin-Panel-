@@ -224,8 +224,11 @@ export default function ManualDispatchControl({
           const riderObj = riders.find(r => r.id === o.riderId);
           if (!riderObj) return;
 
+          const onlineStatus = (riderObj.onlineStatus || '').toUpperCase();
+          const dutyStatus = (riderObj.dutyStatus || '').toUpperCase();
+
           // 1. Rider Goes Offline while assigned
-          if (riderObj.onlineStatus === 'offline') {
+          if (onlineStatus === 'OFFLINE') {
             alerts.push({
               id: `offline-${o.id}`,
               orderId: o.id,
@@ -237,7 +240,7 @@ export default function ManualDispatchControl({
             });
           }
           // 2. Rider Duty Ended while assigned
-          else if (riderObj.dutyStatus === 'off_duty') {
+          else if (dutyStatus === 'OFF_DUTY') {
             alerts.push({
               id: `duty-${o.id}`,
               orderId: o.id,
@@ -583,9 +586,10 @@ export default function ManualDispatchControl({
     const oLat = selectedOrder.restaurantLat || getActiveCity().centerLat;
     const oLng = selectedOrder.restaurantLng || getActiveCity().centerLng;
 
-    const eligibleRiders = riders.filter(
-      r => r.status === 'approved' && r.onlineStatus === 'online'
-    );
+    const eligibleRiders = riders.filter(r => {
+      const onlineStatus = (r.onlineStatus || '').toUpperCase();
+      return r.status === 'approved' && onlineStatus === 'ONLINE';
+    });
 
     if (eligibleRiders.length === 0) return null;
 
@@ -1249,19 +1253,28 @@ export default function ManualDispatchControl({
 
                       {/* Status badge */}
                       <td className="py-3.5 px-4 space-y-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`w-1.5 h-1.5 rounded-full ${rider.onlineStatus === 'online' || rider.dutyStatus === 'on_duty' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
-                          <span className={`text-[10px] font-bold uppercase ${rider.onlineStatus === 'online' || rider.dutyStatus === 'on_duty' ? 'text-emerald-400' : 'text-slate-400'}`}>
-                            {rider.onlineStatus === 'online' || rider.dutyStatus === 'on_duty' ? 'online' : 'offline'}
-                          </span>
-                        </div>
-                        <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded font-mono ${
-                          rider.dutyStatus === 'on_duty' 
-                            ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' 
-                            : 'bg-slate-900 text-slate-500 border border-slate-850'
-                        }`}>
-                          {rider.dutyStatus === 'on_duty' ? 'ON DUTY' : 'OFF DUTY'}
-                        </span>
+                        {(() => {
+                          const onlineStatus = (rider.onlineStatus || '').toUpperCase();
+                          const dutyStatus = (rider.dutyStatus || '').toUpperCase();
+                          const isOnlineOrOnDuty = onlineStatus === 'ONLINE' || dutyStatus === 'ON_DUTY';
+                          return (
+                            <>
+                              <div className="flex items-center gap-1.5">
+                                <span className={`w-1.5 h-1.5 rounded-full ${isOnlineOrOnDuty ? 'bg-emerald-500' : 'bg-slate-500'}`} />
+                                <span className={`text-[10px] font-bold uppercase ${isOnlineOrOnDuty ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                  {isOnlineOrOnDuty ? 'online' : 'offline'}
+                                </span>
+                              </div>
+                              <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded font-mono ${
+                                dutyStatus === 'ON_DUTY' 
+                                  ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' 
+                                  : 'bg-slate-900 text-slate-500 border border-slate-850'
+                              }`}>
+                                {dutyStatus === 'ON_DUTY' ? 'ON DUTY' : 'OFF DUTY'}
+                              </span>
+                            </>
+                          );
+                        })()}
                       </td>
 
                       {/* Proximity */}
@@ -1412,8 +1425,8 @@ export default function ManualDispatchControl({
                     <div>
                       <span className="text-[9px] text-slate-500 block uppercase font-bold">Online Status</span>
                       <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className={`w-1.5 h-1.5 rounded-full ${rider.onlineStatus === 'online' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
-                        <span className={`text-[10px] font-bold uppercase ${rider.onlineStatus === 'online' ? 'text-emerald-400' : 'text-slate-400'}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${(rider.onlineStatus || '').toUpperCase() === 'ONLINE' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
+                        <span className={`text-[10px] font-bold uppercase ${(rider.onlineStatus || '').toUpperCase() === 'ONLINE' ? 'text-emerald-400' : 'text-slate-400'}`}>
                           {rider.onlineStatus}
                         </span>
                       </div>
@@ -1422,11 +1435,11 @@ export default function ManualDispatchControl({
                     <div>
                       <span className="text-[9px] text-slate-500 block uppercase font-bold">Duty Status</span>
                       <span className={`inline-block mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded font-mono ${
-                        rider.dutyStatus === 'on_duty' 
+                        (rider.dutyStatus || '').toUpperCase() === 'ON_DUTY' 
                           ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' 
                           : 'bg-slate-950 text-slate-500 border border-slate-850'
                       }`}>
-                        {rider.dutyStatus === 'on_duty' ? 'ON DUTY' : 'OFF DUTY'}
+                        {(rider.dutyStatus || '').toUpperCase() === 'ON_DUTY' ? 'ON DUTY' : 'OFF DUTY'}
                       </span>
                     </div>
 
@@ -1576,7 +1589,7 @@ export default function ManualDispatchControl({
                   className="w-12 h-12 rounded-full object-cover border border-slate-700" 
                   referrerPolicy="no-referrer"
                 />
-                <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-slate-900 ${viewingRider.onlineStatus === 'online' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
+                <span className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-slate-900 ${(viewingRider.onlineStatus || '').toUpperCase() === 'ONLINE' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
               </div>
               <div>
                 <h3 className="text-sm font-black text-slate-200 uppercase tracking-wide">
@@ -1609,11 +1622,11 @@ export default function ManualDispatchControl({
                 <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-850">
                   <span className="text-[10px] text-slate-500 block uppercase font-bold">Duty Status</span>
                   <span className={`inline-block mt-1 text-[9px] font-bold px-1.5 py-0.5 rounded font-mono ${
-                    viewingRider.dutyStatus === 'on_duty' 
+                    (viewingRider.dutyStatus || '').toUpperCase() === 'ON_DUTY' 
                       ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' 
                       : 'bg-slate-900 text-slate-500 border border-slate-800'
                   }`}>
-                    {viewingRider.dutyStatus === 'on_duty' ? 'ON DUTY' : 'OFF DUTY'}
+                    {(viewingRider.dutyStatus || '').toUpperCase() === 'ON_DUTY' ? 'ON DUTY' : 'OFF DUTY'}
                   </span>
                 </div>
                 <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-850">

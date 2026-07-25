@@ -567,7 +567,10 @@ export default function LogisticsCatalogTab({ restaurants, riders, orders, onLog
                 className="w-full bg-slate-950 border border-slate-850 rounded-xl p-3 text-slate-100 focus:border-amber-500 outline-none"
               >
                 <option value="">-- Manual Assignment (Unassigned) --</option>
-                {riders.filter(r => r.status === 'approved' && r.onlineStatus === 'online').map(r => (
+                {riders.filter(r => {
+                  const onlineStatus = (r.onlineStatus || '').toUpperCase();
+                  return r.status === 'approved' && onlineStatus === 'ONLINE';
+                }).map(r => (
                   <option key={r.id} value={r.id}>{r.name} (Duty: {r.dutyStatus})</option>
                 ))}
               </select>

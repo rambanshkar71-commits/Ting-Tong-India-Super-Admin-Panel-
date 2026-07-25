@@ -130,8 +130,16 @@ export default function DashboardView({ orders, riders, restaurants, customers, 
   const activeRestaurantsCount = restaurants.filter(r => r.status === 'approved').length;
   const activeRidersCount = scopedRiders.filter(r => r.status === 'approved').length;
   
-  const onlineRiders = scopedRiders.filter(r => (r.onlineStatus === 'online' || r.dutyStatus === 'on_duty') && r.status === 'approved');
-  const offlineRiders = scopedRiders.filter(r => r.onlineStatus === 'offline' && r.dutyStatus !== 'on_duty' && r.status === 'approved');
+  const onlineRiders = scopedRiders.filter(r => {
+    const onlineStatus = (r.onlineStatus || '').toUpperCase();
+    const dutyStatus = (r.dutyStatus || '').toUpperCase();
+    return (onlineStatus === 'ONLINE' || dutyStatus === 'ON_DUTY') && r.status === 'approved';
+  });
+  const offlineRiders = scopedRiders.filter(r => {
+    const onlineStatus = (r.onlineStatus || '').toUpperCase();
+    const dutyStatus = (r.dutyStatus || '').toUpperCase();
+    return onlineStatus === 'OFFLINE' && dutyStatus !== 'ON_DUTY' && r.status === 'approved';
+  });
 
   const activeCity = getActiveCity();
 

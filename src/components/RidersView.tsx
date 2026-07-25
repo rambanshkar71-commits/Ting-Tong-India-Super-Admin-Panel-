@@ -439,8 +439,10 @@ export default function RidersView({ riders, orders = [], zones = [] }: RidersVi
                   {filteredRiders.map(r => {
                     const isSelected = selectedRider?.id === r.id;
                     const lastActiveStr = (r as any).lastActiveAt || (r as any).lastLocationUpdate;
+                    const onlineStatus = (r.onlineStatus || '').toUpperCase();
+                    const dutyStatus = (r.dutyStatus || '').toUpperCase();
                     let timeAgo = 'Offline';
-                    if (r.onlineStatus === 'online') {
+                    if (onlineStatus === 'ONLINE') {
                       timeAgo = 'Active now';
                     } else if (lastActiveStr) {
                       const mins = Math.floor((Date.now() - new Date(lastActiveStr).getTime()) / 60000);
@@ -473,7 +475,7 @@ export default function RidersView({ riders, orders = [], zones = [] }: RidersVi
                                 className="w-9 h-9 rounded-full object-cover border border-slate-700 shrink-0" 
                                 referrerPolicy="no-referrer"
                               />
-                              <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-slate-900 ${r.onlineStatus === 'online' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
+                              <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-slate-900 ${onlineStatus === 'ONLINE' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
                             </div>
                             <div>
                               <p className="font-bold text-slate-100">{r.name}</p>
@@ -484,18 +486,18 @@ export default function RidersView({ riders, orders = [], zones = [] }: RidersVi
                         <td className="p-3">
                           <div className="flex flex-col gap-1">
                             <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider w-max ${
-                              r.dutyStatus === 'on_duty' 
+                              dutyStatus === 'ON_DUTY' 
                                 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
                                 : 'bg-slate-800 text-slate-400'
                             }`}>
-                              {r.dutyStatus === 'on_duty' ? '🟢 ON DUTY' : '🔴 OFF DUTY'}
+                              {dutyStatus === 'ON_DUTY' ? '🟢 ON DUTY' : '🔴 OFF DUTY'}
                             </span>
                             <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider w-max ${
-                              r.onlineStatus === 'online' 
+                              onlineStatus === 'ONLINE' 
                                 ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' 
                                 : 'bg-slate-800 text-slate-500'
                             }`}>
-                              {r.onlineStatus === 'online' ? '⚡ ONLINE' : '💤 OFFLINE'}
+                              {onlineStatus === 'ONLINE' ? '⚡ ONLINE' : '💤 OFFLINE'}
                             </span>
                           </div>
                         </td>
@@ -1221,7 +1223,8 @@ export function LiveFleetTelemetry({ riders, orders = [], zones = [] }: { riders
     return (r.name.charCodeAt(0) % 40) + 60;
   };
   const getSpeed = (r: Rider & { speed?: number }) => {
-    if (r.onlineStatus === 'offline') return 0;
+    const onlineStatus = (r.onlineStatus || '').toUpperCase();
+    if (onlineStatus === 'OFFLINE') return 0;
     if (r.speed !== undefined) return r.speed;
     return (r.name.charCodeAt(1) % 30) + 15;
   };
@@ -1230,7 +1233,8 @@ export function LiveFleetTelemetry({ riders, orders = [], zones = [] }: { riders
     return ((r.name.charCodeAt(2) % 45) + 5).toFixed(1);
   };
   const getLastActive = (r: Rider & { lastActiveAt?: string; lastLocationUpdate?: string }) => {
-    if (r.onlineStatus === 'online') return 'Active now';
+    const onlineStatus = (r.onlineStatus || '').toUpperCase();
+    if (onlineStatus === 'ONLINE') return 'Active now';
     const ts = r.lastActiveAt || r.lastLocationUpdate;
     if (ts) {
       const diffMs = Date.now() - new Date(ts).getTime();
@@ -1244,8 +1248,8 @@ export function LiveFleetTelemetry({ riders, orders = [], zones = [] }: { riders
     return 'Offline';
   };
 
-  const onlineCount = riders.filter(r => r.onlineStatus === 'online').length;
-  const offDutyCount = riders.filter(r => r.dutyStatus === 'off_duty').length;
+  const onlineCount = riders.filter(r => (r.onlineStatus || '').toUpperCase() === 'ONLINE').length;
+  const offDutyCount = riders.filter(r => (r.dutyStatus || '').toUpperCase() === 'OFF_DUTY').length;
   const avgBattery = riders.length ? Math.round(riders.reduce((acc, r) => acc + getBattery(r), 0) / riders.length) : 100;
   const totalFleetKm = riders.reduce((acc, r) => acc + parseFloat(getDistance(r)), 0).toFixed(1);
 
@@ -1259,7 +1263,7 @@ export function LiveFleetTelemetry({ riders, orders = [], zones = [] }: { riders
         </div>
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-sm">
           <span className="text-[10px] uppercase font-bold text-slate-400 font-mono">ड्यूटी आवंटन (Duty Status)</span>
-          <p className="text-xl font-bold font-mono text-amber-500 mt-0.5">{riders.filter(r => r.dutyStatus === 'on_duty').length} ड्यूटी पर</p>
+          <p className="text-xl font-bold font-mono text-amber-500 mt-0.5">{riders.filter(r => (r.dutyStatus || '').toUpperCase() === 'ON_DUTY').length} ड्यूटी पर</p>
           <p className="text-[10px] text-slate-500 mt-1">{offDutyCount} विश्राम पर (Off Duty)</p>
         </div>
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-sm">
@@ -1286,6 +1290,7 @@ export function LiveFleetTelemetry({ riders, orders = [], zones = [] }: { riders
               const speed = getSpeed(r);
               const distance = getDistance(r);
               const isSelected = selectedRider?.id === r.id;
+              const onlineStatus = (r.onlineStatus || '').toUpperCase();
               
               return (
                 <div
@@ -1303,11 +1308,11 @@ export function LiveFleetTelemetry({ riders, orders = [], zones = [] }: { riders
                       <p className="text-[10px] text-slate-500 font-mono">{r.phone}</p>
                     </div>
                     <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase font-mono ${
-                      r.onlineStatus === 'online'
+                      onlineStatus === 'ONLINE'
                         ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                         : 'bg-slate-800 text-slate-500'
                     }`}>
-                      {r.onlineStatus === 'online' ? (
+                      {onlineStatus === 'ONLINE' ? (
                         <>
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                           Online
