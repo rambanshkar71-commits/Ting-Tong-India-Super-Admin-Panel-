@@ -288,6 +288,10 @@ export default function App() {
             status: data.status || 'approved',
             onlineStatus: data.onlineStatus || 'offline',
             dutyStatus: data.dutyStatus || 'off_duty',
+            workZoneId: data.workZoneId || '',
+            workZone: data.workZone || '',
+            cityId: data.cityId || '',
+            city: data.city || '',
             updatedAt: new Date().toISOString()
           }, { merge: true }).catch(err => {
             handleFirestoreError(err, OperationType.UPDATE, 'users/' + authUid);

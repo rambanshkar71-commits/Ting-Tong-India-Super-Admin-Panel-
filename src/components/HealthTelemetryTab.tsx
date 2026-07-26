@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { 
   collection, 
-  getDocs, 
+  onSnapshot, 
   doc, 
   updateDoc, 
   setDoc, 
@@ -84,41 +84,45 @@ export default function HealthTelemetryTab({ auditLogs, onLogEvent }: HealthTele
   const [newKeyLabel, setNewKeyLabel] = useState('');
 
   useEffect(() => {
-    const fetchTelemetryAndLogs = async () => {
-      try {
-        const logsSnap = await getDocs(query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc'), limit(15)));
-        if (!logsSnap.empty) {
-          setDbLogs(logsSnap.docs.map(d => ({ id: d.id, ...d.data() }) as AuditLog));
-        } else {
-          setDbLogs(auditLogs);
-        }
-
-        const ticketsSnap = await getDocs(collection(db, 'tickets'));
-        if (!ticketsSnap.empty) {
-          setTickets(ticketsSnap.docs.map(d => ({ id: d.id, ...d.data() }) as Ticket));
-        } else {
-          setTickets([
-            { id: 'tic_001', customerName: 'Harish Verma', issueType: 'Late Delivery', description: 'Order delayed in MP Nagar for 40 minutes.', status: 'open', date: '2026-07-08', replies: [{ sender: 'customer', text: 'Where is my order?' }] },
-            { id: 'tic_002', customerName: 'Sneha Rao', issueType: 'Wrong Item', description: 'Received Sweet Lassi instead of Rabdi.', status: 'open', date: '2026-07-09', replies: [] },
-            { id: 'tic_003', customerName: 'Gopal Singh (Rider)', issueType: 'Payout Issue', description: 'Rider wallet shows mismatch for Saturday payouts.', status: 'resolved', date: '2026-07-05', replies: [] }
-          ]);
-        }
-
-        const keysSnap = await getDocs(collection(db, 'developer_api_keys'));
-        if (!keysSnap.empty) {
-          setApiKeys(keysSnap.docs.map(d => ({ id: d.id, ...d.data() }) as DeveloperKey));
-        } else {
-          setApiKeys([
-            { id: 'key_1', name: 'Logistics Partner API', key: 'tt_live_728bhopal_a982', scope: 'Read Orders', created: '2026-05-15' }
-          ]);
-        }
-      } catch (err) {
-        console.error("Error fetching telemetry configurations:", err);
-      } finally {
-        setLoading(false);
+    const unsubLogs = onSnapshot(query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc'), limit(15)), (logsSnap) => {
+      if (!logsSnap.empty) {
+        setDbLogs(logsSnap.docs.map(d => ({ id: d.id, ...d.data() }) as AuditLog));
+      } else {
+        setDbLogs(auditLogs);
       }
+    }, (err) => console.error("Audit logs error:", err));
+
+    const unsubTickets = onSnapshot(collection(db, 'tickets'), (ticketsSnap) => {
+      if (!ticketsSnap.empty) {
+        setTickets(ticketsSnap.docs.map(d => ({ id: d.id, ...d.data() }) as Ticket));
+      } else {
+        setTickets([
+          { id: 'tic_001', customerName: 'Harish Verma', issueType: 'Late Delivery', description: 'Order delayed in MP Nagar for 40 minutes.', status: 'open', date: '2026-07-08', replies: [{ sender: 'customer', text: 'Where is my order?' }] },
+          { id: 'tic_002', customerName: 'Sneha Rao', issueType: 'Wrong Item', description: 'Received Sweet Lassi instead of Rabdi.', status: 'open', date: '2026-07-09', replies: [] },
+          { id: 'tic_003', customerName: 'Gopal Singh (Rider)', issueType: 'Payout Issue', description: 'Rider wallet shows mismatch for Saturday payouts.', status: 'resolved', date: '2026-07-05', replies: [] }
+        ]);
+      }
+    }, (err) => console.error("Tickets error:", err));
+
+    const unsubKeys = onSnapshot(collection(db, 'developer_api_keys'), (keysSnap) => {
+      if (!keysSnap.empty) {
+        setApiKeys(keysSnap.docs.map(d => ({ id: d.id, ...d.data() }) as DeveloperKey));
+      } else {
+        setApiKeys([
+          { id: 'key_1', name: 'Logistics Partner API', key: 'tt_live_728bhopal_a982', scope: 'Read Orders', created: '2026-05-15' }
+        ]);
+      }
+      setLoading(false);
+    }, (err) => {
+      console.error("Developer keys error:", err);
+      setLoading(false);
+    });
+
+    return () => {
+      unsubLogs();
+      unsubTickets();
+      unsubKeys();
     };
-    fetchTelemetryAndLogs();
   }, []);
 
   const handleCreateAPIKey = async () => {

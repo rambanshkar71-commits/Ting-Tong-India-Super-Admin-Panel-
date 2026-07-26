@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { 
   collection, 
-  getDocs, 
+  onSnapshot, 
   doc, 
   updateDoc, 
   setDoc, 
@@ -70,34 +70,36 @@ export default function OperationsApprovalsTab({ restaurants, riders, customers,
   const [inspectRider, setInspectRider] = useState<Rider | null>(null);
 
   useEffect(() => {
-    const fetchOperationsData = async () => {
-      try {
-        const userSnap = await getDocs(collection(db, 'internal_users'));
-        if (!userSnap.empty) {
-          setInternalUsers(userSnap.docs.map(d => ({ id: d.id, ...d.data() }) as InternalUser));
-        } else {
-          setInternalUsers([
-            { id: 'usr_1', name: 'Ramesh Banshkar', email: 'rambanshkar1@gmail.com', role: 'Super Admin', status: 'active' },
-            { id: 'usr_2', name: 'Alok Saxena', email: 'alok.dispatcher@tingtong.com', role: 'Dispatcher', status: 'active' },
-            { id: 'usr_3', name: 'Sujata Deshmukh', email: 'sujata.auditor@tingtong.com', role: 'Financial Auditor', status: 'active' }
-          ]);
-        }
-
-        const permSnap = await getDocs(collection(db, 'internal_permissions'));
-        if (!permSnap.empty) {
-          const matrix: Record<string, string[]> = {};
-          permSnap.docs.forEach(d => {
-            matrix[d.id] = d.data().permissions || [];
-          });
-          setPermissionMatrix(matrix);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
+    const unsubUsers = onSnapshot(collection(db, 'internal_users'), (userSnap) => {
+      if (!userSnap.empty) {
+        setInternalUsers(userSnap.docs.map(d => ({ id: d.id, ...d.data() }) as InternalUser));
+      } else {
+        setInternalUsers([
+          { id: 'usr_1', name: 'Ramesh Banshkar', email: 'rambanshkar1@gmail.com', role: 'Super Admin', status: 'active' },
+          { id: 'usr_2', name: 'Alok Saxena', email: 'alok.dispatcher@tingtong.com', role: 'Dispatcher', status: 'active' },
+          { id: 'usr_3', name: 'Sujata Deshmukh', email: 'sujata.auditor@tingtong.com', role: 'Financial Auditor', status: 'active' }
+        ]);
       }
+    }, (err) => console.error("Error subscribing internal_users:", err));
+
+    const unsubPerms = onSnapshot(collection(db, 'internal_permissions'), (permSnap) => {
+      if (!permSnap.empty) {
+        const matrix: Record<string, string[]> = {};
+        permSnap.docs.forEach(d => {
+          matrix[d.id] = d.data().permissions || [];
+        });
+        setPermissionMatrix(matrix);
+      }
+      setLoading(false);
+    }, (err) => {
+      console.error("Error subscribing internal_permissions:", err);
+      setLoading(false);
+    });
+
+    return () => {
+      unsubUsers();
+      unsubPerms();
     };
-    fetchOperationsData();
   }, []);
 
   // Internal users operations

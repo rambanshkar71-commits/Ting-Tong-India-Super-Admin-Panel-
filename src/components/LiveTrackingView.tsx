@@ -291,22 +291,21 @@ export default function LiveTrackingView({ orders, riders, restaurants, customer
     });
   }, [zones]);
 
-  // Deterministic operational zone assignment for each rider
+  // Deterministic operational zone assignment for each rider using Firestore single source of truth
   const getAssignedZoneForRider = (rider: Rider) => {
-    if (resolvedZones.length === 0) {
-      const activeCity = getActiveCity();
-      return { id: 'default', name: activeCity.name, center: [activeCity.centerLat, activeCity.centerLng] as [number, number], radius: 5 };
+    const matchedZone = getZoneForRider(rider, zones as WorkZone[]);
+    if (matchedZone) {
+      const cLat = matchedZone.centerLat ?? (matchedZone.center as any)?.lat ?? (Array.isArray(matchedZone.center) ? matchedZone.center[0] : 23.25);
+      const cLng = matchedZone.centerLng ?? (matchedZone.center as any)?.lng ?? (Array.isArray(matchedZone.center) ? matchedZone.center[1] : 77.4124);
+      return {
+        id: matchedZone.id,
+        name: matchedZone.name || matchedZone.zoneName || 'Work Zone',
+        center: [cLat, cLng] as [number, number],
+        radius: matchedZone.radius || 5
+      };
     }
-    const hash = rider.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const zoneIndex = hash % resolvedZones.length;
-    const zone = resolvedZones[zoneIndex];
-    const center = (zone.centerLat && zone.centerLng) ? [zone.centerLat, zone.centerLng] as [number, number] : getZoneCenter(zone.name);
-    return {
-      id: zone.id,
-      name: zone.name,
-      center,
-      radius: zone.radius
-    };
+    const activeCity = getActiveCity();
+    return { id: 'default', name: activeCity.name, center: [activeCity.centerLat, activeCity.centerLng] as [number, number], radius: 5 };
   };
 
   // ---------------------------------------------------------------------------

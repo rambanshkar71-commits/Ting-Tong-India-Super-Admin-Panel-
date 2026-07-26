@@ -364,14 +364,11 @@ export default function GigManagementView() {
       // 3. Sync Rider Document Active Gig state
       try {
         const riderRef = doc(db, 'riders', riderId);
-        const riderSnap = await getDoc(riderRef);
-        if (riderSnap.exists()) {
-          const isFinished = newStatus === 'completed' || newStatus === 'cancelled';
-          await updateDoc(riderRef, {
-            activeGigStatus: newStatus,
-            ...(isFinished ? { activeGigId: '', activeGigName: '' } : { activeGigId: gigId, activeGigName: targetGig?.name || 'Active Shift' })
-          });
-        }
+        const isFinished = newStatus === 'completed' || newStatus === 'cancelled';
+        await updateDoc(riderRef, {
+          activeGigStatus: newStatus,
+          ...(isFinished ? { activeGigId: '', activeGigName: '' } : { activeGigId: gigId, activeGigName: targetGig?.name || 'Active Shift' })
+        });
       } catch (rErr) {
         console.warn("Could not sync rider doc active state:", rErr);
       }

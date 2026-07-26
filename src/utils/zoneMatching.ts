@@ -97,40 +97,48 @@ export function getZoneForOrder(order: Order, workZones: WorkZone[]): WorkZone |
  * Determines which WorkZone a Rider belongs to.
  */
 export function getZoneForRider(rider: Rider, workZones: WorkZone[]): WorkZone | null {
+  if (!workZones || workZones.length === 0) return null;
   const activeZones = workZones.filter(z => z.active !== false);
+  const pool = activeZones.length > 0 ? activeZones : workZones;
 
   // 1. Explicit rider workZoneId match
   if ((rider as any).workZoneId) {
-    const matched = activeZones.find(z => z.id === (rider as any).workZoneId || z.zoneId === (rider as any).workZoneId);
+    const matched = pool.find(z => z.id === (rider as any).workZoneId || z.zoneId === (rider as any).workZoneId);
     if (matched) return matched;
   }
 
   // 2. Explicit rider workZone name match
   if (rider.workZone || (rider as any).zone) {
     const rZoneName = (rider.workZone || (rider as any).zone || '').toLowerCase();
-    const matched = activeZones.find(z => 
+    const matched = pool.find(z => 
       z.name.toLowerCase() === rZoneName || 
       z.zoneName.toLowerCase() === rZoneName
     );
     if (matched) return matched;
   }
 
-  // 3. Location-based polygon / radius match
+  // 3. Explicit check in workZone assignedRiderIds array
+  if (rider.id) {
+    const assignedZone = pool.find(z => Array.isArray(z.assignedRiderIds) && z.assignedRiderIds.includes(rider.id));
+    if (assignedZone) return assignedZone;
+  }
+
+  // 4. Location-based polygon / radius match
   if (typeof rider.lat === 'number' && typeof rider.lng === 'number' && rider.lat !== 0 && rider.lng !== 0) {
-    const matched = activeZones.find(z => isLocationInZone(rider.lat, rider.lng, z));
+    const matched = pool.find(z => isLocationInZone(rider.lat, rider.lng, z));
     if (matched) return matched;
   }
 
-  // 4. City match fallback
+  // 5. City match fallback
   if (rider.cityId || rider.city) {
-    const cityZones = activeZones.filter(z => 
+    const cityZones = pool.filter(z => 
       z.cityId === rider.cityId || 
       z.cityName.toLowerCase() === (rider.city || '').toLowerCase()
     );
     if (cityZones.length > 0) return cityZones[0];
   }
 
-  return activeZones[0] || null;
+  return pool[0] || null;
 }
 
 /**
@@ -141,5 +149,5 @@ export function isRiderInOrderWorkZone(rider: Rider, order: Order, workZones: Wo
   const riderZone = getZoneForRider(rider, workZones);
   
   if (!orderZone || !riderZone) return true;
-  return orderZone.id === riderZone.id;
+  return orderZone.id === riderZone.id || orderZone.zoneId === riderZone.zoneId || orderZone.name.toLowerCase() === riderZone.name.toLowerCase();
 }

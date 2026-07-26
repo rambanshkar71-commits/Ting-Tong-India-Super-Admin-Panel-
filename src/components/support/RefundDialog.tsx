@@ -6,7 +6,6 @@ import {
   addDoc, 
   updateDoc, 
   setDoc, 
-  getDoc,
   runTransaction
 } from 'firebase/firestore';
 import { Order } from '../../types';

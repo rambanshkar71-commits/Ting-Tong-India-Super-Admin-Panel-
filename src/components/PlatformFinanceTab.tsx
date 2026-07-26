@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { 
   collection, 
-  getDocs, 
+  onSnapshot, 
   doc, 
   setDoc, 
   updateDoc, 
@@ -100,50 +100,54 @@ export default function PlatformFinanceTab({ restaurants, riders, orders, onLogE
   const [newBannerWeight, setNewBannerWeight] = useState('1');
 
   useEffect(() => {
-    const loadPlatformAndCoupons = async () => {
-      try {
-        const docSnap = await getDocs(collection(db, 'coupons'));
-        const list = docSnap.docs.map(d => ({ id: d.id, ...d.data() }) as Coupon);
-        setCoupons(list);
+    const unsubCoupons = onSnapshot(collection(db, 'coupons'), (snap) => {
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }) as Coupon);
+      setCoupons(list);
+    }, (err) => console.error("Coupons snapshot error:", err));
 
-        const bannerSnap = await getDocs(collection(db, 'banners'));
-        if (!bannerSnap.empty) {
-          setBanners(bannerSnap.docs.map(d => ({ id: d.id, ...d.data() }) as Banner));
-        } else {
-          setBanners([
-            { id: 'b1', imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=800&auto=format&fit=crop', redirectUrl: '/rest_001', weight: 1, active: true },
-            { id: 'b2', imageUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?q=80&w=800&auto=format&fit=crop', redirectUrl: '/rest_002', weight: 2, active: true }
-          ]);
-        }
-
-        const globalDoc = await getDocs(collection(db, 'system_settings'));
-        const globalRef = globalDoc.docs.find(d => d.id === 'global');
-        if (globalRef) {
-          const data = globalRef.data() as SystemSettings;
-          setCompanyName(data.companyName);
-          setSupportPhone(data.supportPhone);
-          setSupportEmail(data.supportEmail);
-          setBaseCharge(String(data.baseCharge));
-          setPerKmCharge(String(data.perKmCharge));
-          setMinOrderCharge(String(data.minOrderCharge));
-          setPeakCharge(String(data.peakCharge));
-          setNightCharge(String(data.nightCharge));
-          setRainCharge(String(data.rainCharge));
-          setFestivalCharge(String(data.festivalCharge));
-          setFreeMin(String(data.freeDeliveryMinAmount));
-          setCommPct(String(data.restaurantCommissionPct));
-          setRiderPct(String(data.riderCommissionPct));
-          setGstNo(data.gstNo);
-          setFssaiNo(data.fssaiNo);
-          setAddress(data.address);
-        }
-      } catch (err) {
-        console.error("Error loading configurations:", err);
-      } finally {
-        setLoading(false);
+    const unsubBanners = onSnapshot(collection(db, 'banners'), (snap) => {
+      if (!snap.empty) {
+        setBanners(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Banner));
+      } else {
+        setBanners([
+          { id: 'b1', imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?q=80&w=800&auto=format&fit=crop', redirectUrl: '/rest_001', weight: 1, active: true },
+          { id: 'b2', imageUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?q=80&w=800&auto=format&fit=crop', redirectUrl: '/rest_002', weight: 2, active: true }
+        ]);
       }
+    }, (err) => console.error("Banners snapshot error:", err));
+
+    const unsubSettings = onSnapshot(collection(db, 'system_settings'), (snap) => {
+      const globalDoc = snap.docs.find(d => d.id === 'global');
+      if (globalDoc) {
+        const data = globalDoc.data() as SystemSettings;
+        setCompanyName(data.companyName || 'TING TONG BHOPAL');
+        setSupportPhone(data.supportPhone || '+91 755 234 5678');
+        setSupportEmail(data.supportEmail || 'support@tingtongbhopal.com');
+        setBaseCharge(String(data.baseCharge ?? '30'));
+        setPerKmCharge(String(data.perKmCharge ?? '10'));
+        setMinOrderCharge(String(data.minOrderCharge ?? '15'));
+        setPeakCharge(String(data.peakCharge ?? '15'));
+        setNightCharge(String(data.nightCharge ?? '20'));
+        setRainCharge(String(data.rainCharge ?? '25'));
+        setFestivalCharge(String(data.festivalCharge ?? '15'));
+        setFreeMin(String(data.freeDeliveryMinAmount ?? '499'));
+        setCommPct(String(data.restaurantCommissionPct ?? '15'));
+        setRiderPct(String(data.riderCommissionPct ?? '80'));
+        setGstNo(data.gstNo || '23AABCT9384C1Z5');
+        setFssaiNo(data.fssaiNo || '12421008000293');
+        setAddress(data.address || `Corporate Headquarters, Hub Station, ${getActiveCity().name}, India`);
+      }
+      setLoading(false);
+    }, (err) => {
+      console.error("Settings snapshot error:", err);
+      setLoading(false);
+    });
+
+    return () => {
+      unsubCoupons();
+      unsubBanners();
+      unsubSettings();
     };
-    loadPlatformAndCoupons();
   }, []);
 
   const handleSaveGlobalParams = async (e: React.FormEvent) => {

@@ -11,8 +11,10 @@ import {
   orderBy, 
   limit 
 } from 'firebase/firestore';
-import { Order, Rider } from '../types';
+import { Order, Rider, WorkZone } from '../types';
 import { calculateDistance, getActiveCity } from '../services/mapService';
+import { subscribeToZones } from '../services/zoneService';
+import { isRiderInOrderWorkZone } from '../utils/zoneMatching';
 
 enum OperationType {
   CREATE = 'create',
@@ -116,6 +118,14 @@ export default function ManualDispatchControl({
   const [selectedOrderId, setSelectedOrderId] = useState<string>('');
   const [riderSearchQuery, setRiderSearchQuery] = useState<string>('');
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
+  const [workZones, setWorkZones] = useState<WorkZone[]>([]);
+
+  useEffect(() => {
+    const unsub = subscribeToZones((updatedZones) => {
+      setWorkZones(updatedZones);
+    });
+    return () => unsub();
+  }, []);
 
   // Sync selected order from parent component
   useEffect(() => {
@@ -588,7 +598,8 @@ export default function ManualDispatchControl({
 
     const eligibleRiders = riders.filter(r => {
       const onlineStatus = (r.onlineStatus || '').toUpperCase();
-      return r.status === 'approved' && onlineStatus === 'ONLINE';
+      const inZone = isRiderInOrderWorkZone(r, selectedOrder, workZones);
+      return r.status === 'approved' && onlineStatus === 'ONLINE' && inZone;
     });
 
     if (eligibleRiders.length === 0) return null;

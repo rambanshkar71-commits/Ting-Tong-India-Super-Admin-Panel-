@@ -192,8 +192,11 @@ export default function OrdersView({ orders, riders }: OrdersViewProps) {
       return { success: false, message: `No active on-duty fleet partners in ${getActiveCity().name} for Order #${orderId}.` };
     }
 
-    // 2. Filter by Capacity Control, Distance Radius, and Rejections
+    // 2. Filter by Work Zone, Capacity Control, Distance Radius, and Rejections
     const eligibleRiders = activeRiders.filter(r => {
+      // Work zone match check
+      if (!isRiderInOrderWorkZone(r, order, workZones)) return false;
+
       // Busy Rider Check (Active orders count < maxActiveOrders)
       const activeCount = getActiveOrdersCount(r.id);
       if (activeCount >= dispatchSettings.maxActiveOrders) return false;

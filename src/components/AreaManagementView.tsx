@@ -6,6 +6,7 @@ import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc, getDocs } fr
 import { WorkZone, City, PolygonPoint, Rider, Coupon } from '../types';
 import { saveWorkZoneToFirestore, toggleWorkZoneActive, deleteWorkZoneFromFirestore } from '../services/zoneService';
 import { DEFAULT_CITIES } from '../services/mapService';
+import { getZoneForRider } from '../utils/zoneMatching';
 import { 
   MapPin, 
   Plus, 
@@ -493,7 +494,12 @@ export default function AreaManagementView() {
   const handleOpenRiderAssign = (wz: WorkZone) => {
     setAssigningZone(wz);
     // Gather riders already assigned to this zone
-    const currentRiderIds = wz.assignedRiderIds || riders.filter(r => (r.city || '').toLowerCase() === wz.cityName.toLowerCase()).map(r => r.id);
+    const currentRiderIds = Array.isArray(wz.assignedRiderIds) && wz.assignedRiderIds.length > 0
+      ? wz.assignedRiderIds
+      : riders.filter(r => {
+          const rZone = getZoneForRider(r, workZones);
+          return rZone?.id === wz.id || rZone?.zoneId === wz.id;
+        }).map(r => r.id);
     setSelectedRiderIds(currentRiderIds);
     setIsRiderAssignOpen(true);
   };
@@ -503,18 +509,67 @@ export default function AreaManagementView() {
     if (!assigningZone) return;
 
     try {
-      await updateDoc(doc(db, 'workZones', assigningZone.id), {
+      const targetZoneId = assigningZone.id;
+      const targetZoneName = assigningZone.name || assigningZone.zoneName || 'Work Zone';
+      const targetCityId = assigningZone.cityId || 'bhopal';
+      const targetCityName = assigningZone.cityName || 'Bhopal';
+
+      // 1. Update the target workZone's assignedRiderIds
+      await updateDoc(doc(db, 'workZones', targetZoneId), {
         assignedRiderIds: selectedRiderIds,
         updatedAt: new Date().toISOString()
       });
 
-      // Update rider documents' zone property
+      // 2. Remove selectedRiderIds from all other workZones
+      for (const wz of workZones) {
+        if (wz.id !== targetZoneId && Array.isArray(wz.assignedRiderIds)) {
+          const filteredIds = wz.assignedRiderIds.filter(id => !selectedRiderIds.includes(id));
+          if (filteredIds.length !== wz.assignedRiderIds.length) {
+            await updateDoc(doc(db, 'workZones', wz.id), {
+              assignedRiderIds: filteredIds,
+              updatedAt: new Date().toISOString()
+            });
+          }
+        }
+      }
+
+      // 3. Update rider documents and sync to users collection
       for (const rider of riders) {
         const isAssigned = selectedRiderIds.includes(rider.id);
-        if (isAssigned && rider.city !== assigningZone.cityName) {
+        const authUid = rider.userId || rider.authUid || rider.id;
+
+        if (isAssigned) {
           await updateDoc(doc(db, 'riders', rider.id), {
-            city: assigningZone.cityName
+            workZoneId: targetZoneId,
+            workZone: targetZoneName,
+            cityId: targetCityId,
+            city: targetCityName,
+            updatedAt: new Date().toISOString()
           });
+
+          if (authUid) {
+            await setDoc(doc(db, 'users', authUid), {
+              workZoneId: targetZoneId,
+              workZone: targetZoneName,
+              cityId: targetCityId,
+              city: targetCityName,
+              updatedAt: new Date().toISOString()
+            }, { merge: true }).catch(() => {});
+          }
+        } else if ((rider as any).workZoneId === targetZoneId || rider.workZone === targetZoneName) {
+          await updateDoc(doc(db, 'riders', rider.id), {
+            workZoneId: '',
+            workZone: '',
+            updatedAt: new Date().toISOString()
+          });
+
+          if (authUid) {
+            await setDoc(doc(db, 'users', authUid), {
+              workZoneId: '',
+              workZone: '',
+              updatedAt: new Date().toISOString()
+            }, { merge: true }).catch(() => {});
+          }
         }
       }
 

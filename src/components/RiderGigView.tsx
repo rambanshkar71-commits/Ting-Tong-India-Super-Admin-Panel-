@@ -8,7 +8,7 @@ import {
   addDoc,
   query, 
   where,
-  getDoc
+  increment
 } from 'firebase/firestore';
 import { Gig, GigBooking, Rider } from '../types';
 import { getActiveCity, getActiveMapSettings, updateMapSettingsInDb } from '../services/mapService';
@@ -541,17 +541,13 @@ export default function RiderGigView({ rider }: RiderGigViewProps) {
       const totalEarned = basePaySum + (gig.perOrderPay * 6);
 
       const riderRef = doc(db, 'riders', rider.id);
-      const riderSnap = await getDoc(riderRef);
-      if (riderSnap.exists()) {
-        const currentBalance = riderSnap.data().walletBalance || 0;
-        await updateDoc(riderRef, {
-          walletBalance: currentBalance + totalEarned,
-          attendanceDays: (riderSnap.data().attendanceDays || 0) + 1,
-          activeGigId: '',
-          activeGigName: '',
-          activeGigStatus: 'completed'
-        });
-      }
+      await updateDoc(riderRef, {
+        walletBalance: increment(totalEarned),
+        attendanceDays: increment(1),
+        activeGigId: '',
+        activeGigName: '',
+        activeGigStatus: 'completed'
+      });
 
       alert(`🎉 Shift Completed! You earned a total of ₹${totalEarned} (Base: ₹${basePaySum} + Orders Payout: ₹${gig.perOrderPay * 6}) which has been credited to your Wallet!`);
     } catch (err: any) {

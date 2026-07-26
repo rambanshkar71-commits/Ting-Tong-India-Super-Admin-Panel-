@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { doc, getDoc, setDoc, addDoc, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, addDoc, updateDoc } from 'firebase/firestore';
 import { User, Smartphone, Lock, ShieldCheck, CheckCircle, Bell, Clock, Key, MapPin, AlertTriangle } from 'lucide-react';
 import { getActiveCity } from '../services/mapService';
 
@@ -54,29 +54,26 @@ export default function AdminProfileTab({ adminEmail, onLogEvent }: AdminProfile
   });
 
   useEffect(() => {
-    // Fetch profile settings on load
-    const fetchProfile = async () => {
-      try {
-        const ref = doc(db, 'system_settings', 'admin_profile');
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const data = snap.data();
-          setProfileName(data.name || 'Ting Tong Super Admin');
-          setPhone(data.phone || '+91 755 2293021');
-          setAltEmail(data.altEmail || 'admin.backup@tingtong.com');
-          setAvatar(data.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=150&auto=format&fit=crop');
-          setAddress(data.address || `Corporate Office, Headquarters, ${getActiveCity().name}`);
-          setTwoFactorEnabled(!!data.twoFactorEnabled);
-          setTimeoutLimit(data.timeout || '30');
-          setMaxAttempts(data.maxAttempts || '5');
-          setIpWhitelist(data.ipWhitelist || '');
-          if (data.notifs) setNotifs(data.notifs);
-        }
-      } catch (err) {
-        console.error("Error fetching admin profile:", err);
+    // Subscribe to profile settings in real-time
+    const ref = doc(db, 'system_settings', 'admin_profile');
+    const unsubscribe = onSnapshot(ref, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setProfileName(data.name || 'Ting Tong Super Admin');
+        setPhone(data.phone || '+91 755 2293021');
+        setAltEmail(data.altEmail || 'admin.backup@tingtong.com');
+        setAvatar(data.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=150&auto=format&fit=crop');
+        setAddress(data.address || `Corporate Office, Headquarters, ${getActiveCity().name}`);
+        setTwoFactorEnabled(!!data.twoFactorEnabled);
+        setTimeoutLimit(data.timeout || '30');
+        setMaxAttempts(data.maxAttempts || '5');
+        setIpWhitelist(data.ipWhitelist || '');
+        if (data.notifs) setNotifs(data.notifs);
       }
-    };
-    fetchProfile();
+    }, (err) => {
+      console.error("Error subscribing to admin profile:", err);
+    });
+    return unsubscribe;
   }, []);
 
   const handleSaveProfile = async (e: React.FormEvent) => {

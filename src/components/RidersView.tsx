@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { db } from '../firebase';
 import { doc, updateDoc, setDoc } from 'firebase/firestore';
-import { Rider, Order, Zone } from '../types';
+import { Rider, Order, Zone, WorkZone } from '../types';
 import { getActiveCity } from '../services/mapService';
+import { subscribeToZones } from '../services/zoneService';
+import { getZoneForRider } from '../utils/zoneMatching';
 import RiderRegistrationForm from './RiderRegistrationForm';
 import LiveTrackingMap from './LiveTrackingMap';
 import { 
@@ -52,6 +54,75 @@ export default function RidersView({ riders, orders = [], zones = [] }: RidersVi
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedRider, setSelectedRider] = useState<Rider | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'suspended'>('all');
+  const [workZones, setWorkZones] = useState<WorkZone[]>(zones as WorkZone[]);
+
+  useEffect(() => {
+    const unsub = subscribeToZones((updatedZones) => {
+      setWorkZones(updatedZones);
+    });
+    return () => unsub();
+  }, []);
+
+  const handleUpdateRiderWorkZone = async (riderId: string, targetZoneId: string) => {
+    const targetZone = workZones.find(z => z.id === targetZoneId || z.zoneId === targetZoneId);
+    if (!targetZone) return;
+
+    try {
+      const tzId = targetZone.id;
+      const tzName = targetZone.name || targetZone.zoneName || 'Work Zone';
+      const tzCityId = targetZone.cityId || 'bhopal';
+      const tzCityName = targetZone.cityName || 'Bhopal';
+
+      // 1. Update rider document in Firestore
+      await updateDoc(doc(db, 'riders', riderId), {
+        workZoneId: tzId,
+        workZone: tzName,
+        cityId: tzCityId,
+        city: tzCityName,
+        updatedAt: new Date().toISOString()
+      });
+
+      // 2. Sync to users collection
+      const targetRider = riders.find(r => r.id === riderId);
+      const authUid = targetRider?.userId || targetRider?.authUid || riderId;
+      if (authUid) {
+        await setDoc(doc(db, 'users', authUid), {
+          workZoneId: tzId,
+          workZone: tzName,
+          cityId: tzCityId,
+          city: tzCityName,
+          updatedAt: new Date().toISOString()
+        }, { merge: true }).catch(() => {});
+      }
+
+      // 3. Update assignedRiderIds in workZones collection
+      for (const wz of workZones) {
+        const isTarget = wz.id === tzId || wz.zoneId === tzId;
+        const currentIds = Array.isArray(wz.assignedRiderIds) ? wz.assignedRiderIds : [];
+        if (isTarget) {
+          if (!currentIds.includes(riderId)) {
+            await updateDoc(doc(db, 'workZones', wz.id), {
+              assignedRiderIds: [...currentIds, riderId],
+              updatedAt: new Date().toISOString()
+            });
+          }
+        } else {
+          if (currentIds.includes(riderId)) {
+            await updateDoc(doc(db, 'workZones', wz.id), {
+              assignedRiderIds: currentIds.filter(id => id !== riderId),
+              updatedAt: new Date().toISOString()
+            });
+          }
+        }
+      }
+
+      setSuccessMessage(`✓ Operating Work Zone assigned to ${tzName}`);
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (err: any) {
+      console.error("Failed to update rider work zone:", err);
+      alert("Error updating work zone: " + err.message);
+    }
+  };
 
   // Verification & Admin Panel Controls
   const [verifiedDocs, setVerifiedDocs] = useState<{ [key: string]: boolean }>({
@@ -508,7 +579,10 @@ export default function RidersView({ riders, orders = [], zones = [] }: RidersVi
                         <td className="p-3">
                           <p className="text-slate-300 text-[11px] font-medium flex items-center gap-1">
                             <MapPin className="w-3 h-3 text-amber-500" />
-                            {r.lat && r.lng ? `${r.lat.toFixed(4)}, ${r.lng.toFixed(4)}` : r.city || getActiveCity().name}
+                            {(() => {
+                              const wz = getZoneForRider(r, workZones);
+                              return wz ? wz.name : (r.city || getActiveCity().name);
+                            })()}
                           </p>
                           <p className="text-slate-500 text-[10px] font-mono mt-0.5">{timeAgo}</p>
                         </td>
@@ -607,6 +681,28 @@ export default function RidersView({ riders, orders = [], zones = [] }: RidersVi
                       सस्पेंड (Suspend)
                     </button>
                   </div>
+                </div>
+
+                {/* Operating Work Zone Control */}
+                <div className="p-3.5 bg-slate-950 border border-slate-850 rounded-xl space-y-2 text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400 font-bold uppercase text-[10px]">ऑपरेटिंग वर्क ज़ोन (Assigned Work Zone)</span>
+                    <span className="font-mono text-amber-400 font-bold">
+                      {getZoneForRider(selectedRider, workZones)?.name || 'Unassigned'}
+                    </span>
+                  </div>
+                  <select 
+                    value={getZoneForRider(selectedRider, workZones)?.id || ''}
+                    onChange={e => handleUpdateRiderWorkZone(selectedRider.id, e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 text-slate-100 rounded-lg p-2 text-xs outline-none cursor-pointer"
+                  >
+                    <option value="" disabled>Select Work Zone</option>
+                    {workZones.map(wz => (
+                      <option key={wz.id} value={wz.id}>
+                        {wz.name} ({wz.cityName})
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* COD Limit Settings */}

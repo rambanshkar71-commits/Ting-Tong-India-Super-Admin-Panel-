@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { SystemSettings } from '../types';
 import { getActiveCity } from '../services/mapService';
 import { 
@@ -36,32 +36,29 @@ export default function DeliveryCommissionsView() {
   const [riderComm, setRiderComm] = useState('');
 
   useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const docRef = doc(db, 'system_settings', 'global');
-        const snap = await getDoc(docRef);
-        if (snap.exists()) {
-          const data = snap.data() as SystemSettings;
-          setSettings(data);
-          
-          setBaseCharge(String(data.baseCharge));
-          setPerKmCharge(String(data.perKmCharge));
-          setMinOrderCharge(String(data.minOrderCharge));
-          setPeakCharge(String(data.peakCharge));
-          setNightCharge(String(data.nightCharge));
-          setRainCharge(String(data.rainCharge));
-          setFestivalCharge(String(data.festivalCharge));
-          setFreeDeliveryMin(String(data.freeDeliveryMinAmount));
-          setRestComm(String(data.restaurantCommissionPct));
-          setRiderComm(String(data.riderCommissionPct));
-        }
-      } catch (err) {
-        console.error("Error fetching system settings: ", err);
-      } finally {
-        setLoading(false);
+    const docRef = doc(db, 'system_settings', 'global');
+    const unsubscribe = onSnapshot(docRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data() as SystemSettings;
+        setSettings(data);
+        
+        setBaseCharge(String(data.baseCharge));
+        setPerKmCharge(String(data.perKmCharge));
+        setMinOrderCharge(String(data.minOrderCharge));
+        setPeakCharge(String(data.peakCharge));
+        setNightCharge(String(data.nightCharge));
+        setRainCharge(String(data.rainCharge));
+        setFestivalCharge(String(data.festivalCharge));
+        setFreeDeliveryMin(String(data.freeDeliveryMinAmount));
+        setRestComm(String(data.restaurantCommissionPct));
+        setRiderComm(String(data.riderCommissionPct));
       }
-    };
-    fetchSettings();
+      setLoading(false);
+    }, (err) => {
+      console.error("Error subscribing system settings: ", err);
+      setLoading(false);
+    });
+    return unsubscribe;
   }, []);
 
   const handleSaveSettings = async (e: React.FormEvent) => {

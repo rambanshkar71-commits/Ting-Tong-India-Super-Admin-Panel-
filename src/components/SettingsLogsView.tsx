@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, addDoc, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { Restaurant, Rider, Customer, Order, AuditLog } from '../types';
 import { 
   User, 
@@ -35,20 +35,15 @@ export default function SettingsLogsView({ restaurants, riders, customers, order
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [adminEmail, setAdminEmail] = useState<string | null>('admin@tingtong.com');
 
-  // Load audit logs stream from Firebase to pass into Telemetry Tab
-  const fetchAuditLogs = async () => {
-    try {
-      const q = query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc'), limit(50));
-      const snap = await getDocs(q);
+  useEffect(() => {
+    const q = query(collection(db, 'audit_logs'), orderBy('timestamp', 'desc'), limit(50));
+    const unsubscribe = onSnapshot(q, (snap) => {
       const list = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as AuditLog);
       setAuditLogs(list);
-    } catch (err) {
-      console.error("Error loading audit logs: ", err);
-    }
-  };
-
-  useEffect(() => {
-    fetchAuditLogs();
+    }, (err) => {
+      console.error("Error subscribing to audit logs: ", err);
+    });
+    return unsubscribe;
   }, []);
 
   // Connected logger that child components invoke to log any action

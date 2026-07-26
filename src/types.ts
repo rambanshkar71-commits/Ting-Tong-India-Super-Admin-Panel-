@@ -107,6 +107,8 @@ export interface Rider {
   totalIncentives: number;
   
   // New Hindi panel compliant fields
+  userId?: string;
+  authUid?: string;
   address?: string;
   city?: string;
   cityId?: string;

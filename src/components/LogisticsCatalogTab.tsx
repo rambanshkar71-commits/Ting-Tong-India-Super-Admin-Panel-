@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { 
   collection, 
-  getDocs, 
   onSnapshot,
   doc, 
   updateDoc, 
@@ -100,27 +99,24 @@ export default function LogisticsCatalogTab({ restaurants, riders, orders, onLog
       setLoading(false);
     }, (err) => console.error("Error subscribing workZones in LogisticsCatalogTab:", err));
 
-    const fetchMenus = async () => {
-      try {
-        const menuSnap = await getDocs(collection(db, 'menu_items'));
-        if (!menuSnap.empty) {
-          setMenuItems(menuSnap.docs.map(d => ({ id: d.id, ...d.data() }) as MenuItem));
-        } else {
-          setMenuItems([
-            { id: "m1", restaurantId: "rest_001", name: "Special Rabdi (250g)", price: 150, category: "Sweets", isAvailable: true, imageUrl: "", description: "" },
-            { id: "m2", restaurantId: "rest_001", name: "Sponge Rasgulla (Plate of 2)", price: 60, category: "Sweets", isAvailable: true, imageUrl: "", description: "" },
-            { id: "m3", restaurantId: "rest_002", name: "Double Cheese Sandwich", price: 120, category: "Sandwiches", isAvailable: true, imageUrl: "", description: "" },
-            { id: "m4", restaurantId: "rest_002", name: "Hot Veg Soup", price: 80, category: "Soups", isAvailable: true, imageUrl: "", description: "" },
-            { id: "m5", restaurantId: "rest_003", name: "Special Veg Thali", price: 220, category: "Thalis", isAvailable: true, imageUrl: "", description: "" }
-          ]);
-        }
-      } catch (err) {
-        console.error(err);
+    const unsubMenus = onSnapshot(collection(db, 'menu_items'), (menuSnap) => {
+      if (!menuSnap.empty) {
+        setMenuItems(menuSnap.docs.map(d => ({ id: d.id, ...d.data() }) as MenuItem));
+      } else {
+        setMenuItems([
+          { id: "m1", restaurantId: "rest_001", name: "Special Rabdi (250g)", price: 150, category: "Sweets", isAvailable: true, imageUrl: "", description: "" },
+          { id: "m2", restaurantId: "rest_001", name: "Sponge Rasgulla (Plate of 2)", price: 60, category: "Sweets", isAvailable: true, imageUrl: "", description: "" },
+          { id: "m3", restaurantId: "rest_002", name: "Double Cheese Sandwich", price: 120, category: "Sandwiches", isAvailable: true, imageUrl: "", description: "" },
+          { id: "m4", restaurantId: "rest_002", name: "Hot Veg Soup", price: 80, category: "Soups", isAvailable: true, imageUrl: "", description: "" },
+          { id: "m5", restaurantId: "rest_003", name: "Special Veg Thali", price: 220, category: "Thalis", isAvailable: true, imageUrl: "", description: "" }
+        ]);
       }
-    };
-    fetchMenus();
+    }, (err) => console.error("Error subscribing menu_items:", err));
 
-    return () => unsubZones();
+    return () => {
+      unsubZones();
+      unsubMenus();
+    };
   }, []);
 
   // Zones

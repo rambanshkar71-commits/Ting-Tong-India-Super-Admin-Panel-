@@ -109,38 +109,26 @@ function mergeDefaultCities(remoteCities?: CityConfig[]): CityConfig[] {
 // Listen for updates from Firestore settings
 export function initializeMapService() {
   const settingsRef = doc(db, 'settings', 'map');
-  
-  // Try to get initial doc or set default if it does not exist
-  getDoc(settingsRef).then((snapshot) => {
-    if (!snapshot.exists()) {
-      setDoc(settingsRef, DEFAULT_MAP_SETTINGS).catch(err => {
-        console.warn('Could not seed default map settings in Firestore:', err);
-      });
-    } else {
-      // If doc exists, ensure new cities are merged in
-      const existingData = snapshot.data() || {};
-      const mergedCities = mergeDefaultCities(existingData.cities);
-      if (mergedCities.length !== (existingData.cities?.length || 0)) {
-        setDoc(settingsRef, { ...existingData, cities: mergedCities }, { merge: true }).catch(err => {
-          console.warn('Could not merge new cities into Firestore map settings:', err);
-        });
-      }
-    }
-  }).catch(err => {
-    console.warn('Failed to retrieve initial map settings, using defaults:', err);
-  });
 
   return onSnapshot(settingsRef, (snapshot) => {
     if (snapshot.exists()) {
       const data = snapshot.data();
       const mergedCities = mergeDefaultCities(data?.cities);
+      if (mergedCities.length !== (data?.cities?.length || 0)) {
+        setDoc(settingsRef, { ...data, cities: mergedCities }, { merge: true }).catch(err => {
+          console.warn('Could not merge new cities into Firestore map settings:', err);
+        });
+      }
       activeSettings = { ...DEFAULT_MAP_SETTINGS, ...data, cities: mergedCities } as MapSettings;
     } else {
+      setDoc(settingsRef, DEFAULT_MAP_SETTINGS).catch(err => {
+        console.warn('Could not seed default map settings in Firestore:', err);
+      });
       activeSettings = { ...DEFAULT_MAP_SETTINGS };
     }
     listeners.forEach(cb => cb(activeSettings));
   }, (err) => {
-    console.error('Failed to subscribe to map settings in Firestore:', err);
+    console.warn('Map settings listener notice:', err);
   });
 }
 
