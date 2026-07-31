@@ -145,7 +145,8 @@ export default function CustomersView({ customers, orders }: CustomersViewProps)
         <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
           <h3 className="font-bold text-slate-100 text-sm">Consumer Registers</h3>
 
-          <div className="overflow-x-auto">
+          {/* Desktop Table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-950 text-slate-400 uppercase font-mono tracking-wider">
                 <tr>
@@ -194,6 +195,55 @@ export default function CustomersView({ customers, orders }: CustomersViewProps)
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Cards */}
+          <div className="block md:hidden space-y-3">
+            {filteredCustomers.map(c => (
+              <div
+                key={c.id}
+                onClick={() => setSelectedCustomer(c)}
+                className="bg-slate-950/80 border border-slate-800 p-4 rounded-xl space-y-3 cursor-pointer hover:border-slate-700 transition"
+              >
+                <div className="flex justify-between items-start border-b border-slate-850 pb-2">
+                  <div>
+                    <p className="font-bold text-slate-100 text-sm">{c.name}</p>
+                    <p className="text-[10px] text-slate-500 font-mono">ID: {c.id}</p>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                    c.status === 'active'
+                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                      : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                  }`}>
+                    {c.status}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-slate-500 block text-[10px] font-mono">Contact</span>
+                    <p className="text-slate-200 font-medium text-xs mt-0.5">{c.phone}</p>
+                    <p className="text-slate-500 text-[10px] truncate">{c.email}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[10px] font-mono">Balances</span>
+                    <p className="text-amber-500 font-mono font-bold text-xs mt-0.5">₹{c.walletBalance} Wallet</p>
+                    <p className="text-slate-400 font-mono text-[10px]">{c.rewardPoints} Pts</p>
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2 border-t border-slate-850" onClick={e => e.stopPropagation()}>
+                  <button
+                    onClick={() => handleToggleBlock(c)}
+                    className={`px-3 py-1 rounded text-xs font-bold flex items-center gap-1 cursor-pointer ${
+                      c.status === 'active' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    }`}
+                  >
+                    {c.status === 'active' ? <><UserMinus className="w-3.5 h-3.5" /> Block Client</> : <><UserCheck className="w-3.5 h-3.5" /> Activate Client</>}
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 

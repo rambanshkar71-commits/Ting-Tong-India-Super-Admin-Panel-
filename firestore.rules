@@ -6,6 +6,10 @@ service cloud.firestore {
     }
     match /customers/{docId} { allow read, write: if true; }
     match /restaurants/{docId} { allow read, write: if true; }
+    match /restaurantProfiles/{docId} { allow read, write: if true; }
+    match /restaurantDocuments/{docId} { allow read, write: if true; }
+    match /restaurantLocations/{docId} { allow read, write: if true; }
+    match /restaurantBankDetails/{docId} { allow read, write: if true; }
     match /riders/{docId} { allow read, write: if true; }
     match /orders/{docId} { allow read, write: if true; }
     match /zones/{docId} { allow read, write: if true; }
@@ -28,6 +32,14 @@ service cloud.firestore {
     match /payment_notifications/{docId} { allow read, write: if true; }
     match /refunds/{docId} { allow read, write: if true; }
     match /users/{docId} { allow read, write: if true; }
+    match /restaurantSchedules/{docId} { allow read, write: if true; }
+    match /restaurantDeliveryConfigs/{docId} { allow read, write: if true; }
+    match /restaurantSettlements/{docId} { allow read, write: if true; }
+    match /restaurantAuditLogs/{docId} { allow read, write: if true; }
+    match /restaurantAnnouncements/{docId} { allow read, write: if true; }
+    match /restaurantComplaints/{docId} { allow read, write: if true; }
+    match /restaurantBackups/{docId} { allow read, write: if true; }
+    match /menuItems/{docId} { allow read, write: if true; }
   }
 }
 

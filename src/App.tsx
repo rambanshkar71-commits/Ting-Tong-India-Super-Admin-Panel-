@@ -65,7 +65,10 @@ import {
   Info,
   CheckCircle2,
   Wallet,
-  Coins
+  Coins,
+  Home,
+  BarChart3,
+  Settings
 } from 'lucide-react';
 import { Order, Restaurant, Rider, Customer } from './types';
 
@@ -236,6 +239,17 @@ export default function App() {
       setRiderLoginError('');
     }
   }, [user, portalMode, showRiderRegistration]);
+
+  // Change tab event listener for quick action buttons across views
+  useEffect(() => {
+    const handleTabChange = (e: any) => {
+      if (e.detail) {
+        setCurrentTab(e.detail);
+      }
+    };
+    window.addEventListener('change-tab', handleTabChange);
+    return () => window.removeEventListener('change-tab', handleTabChange);
+  }, []);
 
   // Sync real-time data to support both Admin panel and Rider portal when authenticated
   useEffect(() => {
@@ -1361,7 +1375,7 @@ export default function App() {
             )}
 
             {/* Real-time FCM Notification Slide-in Popups (Toasts) */}
-            <div className="fixed top-4 right-4 z-[9999] space-y-3 max-w-sm w-full pointer-events-none">
+            <div className="fixed top-4 right-4 left-4 sm:left-auto max-w-sm z-[9999] space-y-3 pointer-events-none">
               {toasts.map((t) => (
                 <div 
                   key={t.id}
@@ -1450,7 +1464,7 @@ export default function App() {
                       {/* Backdrop to close */}
                       <div className="fixed inset-0 z-40" onClick={() => setIsAdminNotifOpen(false)} />
                       
-                      <div className="absolute right-0 mt-2.5 w-72 sm:w-96 max-w-[calc(100vw-2rem)] bg-slate-900/95 border border-slate-850 rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-[450px] backdrop-blur-md">
+                      <div className="fixed top-16 left-3 right-3 sm:absolute sm:top-full sm:right-0 sm:left-auto sm:w-96 mt-2 bg-slate-900/95 border border-slate-850 rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-[450px] backdrop-blur-md">
                         <div className="p-4 border-b border-slate-850 bg-slate-950/40 flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Bell className="w-4 h-4 text-amber-500 animate-pulse" />
@@ -1542,6 +1556,7 @@ export default function App() {
               riders={riders} 
               customers={customers} 
               onOpenLiveTracking={() => setCurrentTab('live_tracking')}
+              onNavigateTab={(tab) => setCurrentTab(tab)}
             />
           )}
 
@@ -1568,6 +1583,7 @@ export default function App() {
           {currentTab === 'restaurants' && (
             <RestaurantsView 
               restaurants={restaurants} 
+              orders={orders}
             />
           )}
 
@@ -1623,7 +1639,60 @@ export default function App() {
         </main>
       </div>
 
-      {/* Real-time Enterprise Workspace */}
+      {/* Mobile Bottom Navigation Bar (4 Tabs) */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-slate-950/95 border-t border-slate-800 backdrop-blur-md px-3 py-1.5 flex items-center justify-around text-slate-400">
+        <button
+          onClick={() => setCurrentTab('dashboard')}
+          className={`flex flex-col items-center justify-center gap-0.5 py-1 px-3 rounded-xl transition min-h-[44px] cursor-pointer ${
+            currentTab === 'dashboard' ? 'text-amber-400 font-bold bg-amber-500/10' : 'hover:text-slate-200'
+          }`}
+        >
+          <Home className="w-4 h-4" />
+          <span className="text-[10px]">Home</span>
+        </button>
+
+        <button
+          onClick={() => {
+            if (!['live_tracking', 'orders', 'gig_management'].includes(currentTab)) {
+              setCurrentTab('live_tracking');
+            }
+          }}
+          className={`flex flex-col items-center justify-center gap-0.5 py-1 px-3 rounded-xl transition min-h-[44px] cursor-pointer ${
+            ['live_tracking', 'orders', 'gig_management'].includes(currentTab) ? 'text-amber-400 font-bold bg-amber-500/10' : 'hover:text-slate-200'
+          }`}
+        >
+          <Truck className="w-4 h-4" />
+          <span className="text-[10px]">Operations</span>
+        </button>
+
+        <button
+          onClick={() => {
+            if (!['restaurants', 'riders', 'customers'].includes(currentTab)) {
+              setCurrentTab('restaurants');
+            }
+          }}
+          className={`flex flex-col items-center justify-center gap-0.5 py-1 px-3 rounded-xl transition min-h-[44px] cursor-pointer ${
+            ['restaurants', 'riders', 'customers'].includes(currentTab) ? 'text-amber-400 font-bold bg-amber-500/10' : 'hover:text-slate-200'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4" />
+          <span className="text-[10px]">Business</span>
+        </button>
+
+        <button
+          onClick={() => {
+            if (!['billing', 'financials', 'payment_management', 'marketing', 'support', 'settings'].includes(currentTab)) {
+              setCurrentTab('settings');
+            }
+          }}
+          className={`flex flex-col items-center justify-center gap-0.5 py-1 px-3 rounded-xl transition min-h-[44px] cursor-pointer ${
+            ['billing', 'financials', 'payment_management', 'marketing', 'support', 'settings'].includes(currentTab) ? 'text-amber-400 font-bold bg-amber-500/10' : 'hover:text-slate-200'
+          }`}
+        >
+          <Settings className="w-4 h-4" />
+          <span className="text-[10px]">Control</span>
+        </button>
+      </nav>
 
     </div>
   );

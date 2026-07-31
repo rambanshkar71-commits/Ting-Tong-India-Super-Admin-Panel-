@@ -453,6 +453,22 @@
       "schema": "restaurant",
       "description": "Partner vendor restaurant accounts"
     },
+    "/restaurantProfiles/{restaurantId}": {
+      "schema": "restaurant",
+      "description": "Enterprise restaurant profile records"
+    },
+    "/restaurantDocuments/{restaurantId}": {
+      "schema": "restaurant",
+      "description": "Enterprise restaurant regulatory and licensing documents"
+    },
+    "/restaurantLocations/{restaurantId}": {
+      "schema": "restaurant",
+      "description": "Enterprise restaurant geolocation and address metadata"
+    },
+    "/restaurantBankDetails/{restaurantId}": {
+      "schema": "restaurant",
+      "description": "Enterprise restaurant payout bank and UPI credentials"
+    },
     "/riders/{riderId}": {
       "schema": "rider",
       "description": "Rider delivery partners accounts"

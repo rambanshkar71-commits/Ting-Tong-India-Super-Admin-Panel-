@@ -1,551 +1,686 @@
 import React, { useState } from 'react';
-import { db } from '../firebase';
-import { doc, updateDoc, setDoc } from 'firebase/firestore';
-import { Restaurant, MenuItem } from '../types';
-import { getActiveCity } from '../services/mapService';
-import { 
-  Store, 
-  Plus, 
-  Trash2, 
-  Check, 
-  X, 
-  FileText, 
-  CreditCard, 
-  MapPin, 
-  PlusCircle, 
+import { db, auth } from '../firebase';
+import { doc, updateDoc, addDoc, collection, deleteDoc } from 'firebase/firestore';
+import { Restaurant, Order, MenuItem, RestaurantLifecycleStatus } from '../types';
+import MerchantOnboardingForm from './MerchantOnboardingForm';
+import RestaurantDetailModal from './RestaurantDetailModal';
+import { sendNotification } from '../services/notificationService';
+import {
+  Store,
+  Plus,
+  Trash2,
+  Check,
+  X,
+  FileText,
+  CreditCard,
+  MapPin,
   Star,
-  DollarSign,
-  AlertCircle,
   Award,
   ShieldCheck,
-  Printer
+  Printer,
+  Key,
+  Search,
+  CheckCircle2,
+  AlertCircle,
+  TrendingUp,
+  Download,
 } from 'lucide-react';
 
 interface RestaurantsViewProps {
   restaurants: Restaurant[];
+  orders?: Order[];
 }
 
-export default function RestaurantsView({ restaurants }: RestaurantsViewProps) {
+export default function RestaurantsView({ restaurants, orders = [] }: RestaurantsViewProps) {
   const [subTab, setSubTab] = useState<'directory' | 'performance'>('directory');
   const [showAddForm, setShowAddForm] = useState(false);
+
+  React.useEffect(() => {
+    const handleAdd = () => setShowAddForm(true);
+    window.addEventListener('open-add-restaurant', handleAdd);
+    return () => window.removeEventListener('open-add-restaurant', handleAdd);
+  }, []);
   const [selectedRestaurant, setSelectedRestaurant] = useState<Restaurant | null>(null);
-  const [approvedRestaurantReceipt, setApprovedRestaurantReceipt] = useState<Restaurant | null>(null);
-  
-  // Menu panel states
-  const [showMenuModal, setShowMenuModal] = useState<Restaurant | null>(null);
-  const [newMenuItemName, setNewMenuItemName] = useState('');
-  const [newMenuItemPrice, setNewMenuItemPrice] = useState('');
-  const [newMenuItemCat, setNewMenuItemCat] = useState('');
+  const [modalInitialTab, setModalInitialTab] = useState<string>('profile');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [approvedReceiptRest, setApprovedReceiptRest] = useState<Restaurant | null>(null);
 
-  // Form states
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
-  const [commission, setCommission] = useState('15');
-  const [gst, setGst] = useState('');
-  const [fssai, setFssai] = useState('');
-  const [bankName, setBankName] = useState('');
-  const [accNo, setAccNo] = useState('');
-  const [ifsc, setIfsc] = useState('');
-  const [upi, setUpi] = useState('');
-
-  // Live menu items linked to the active restaurants
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-
-  const handleCreateRestaurant = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name || !email || !phone) return;
-
-    try {
-      const id = "rest_" + Date.now();
-      const newRest: Restaurant = {
-        id,
-        name,
-        email,
-        phone,
-        address,
-        status: 'approved', // approve instantly in admin panel
-        isOpen: true,
-        rating: 5.0,
-        commissionPercentage: Number(commission),
-        gstNo: gst || "GST-PENDING",
-        fssaiNo: fssai || "FSSAI-PENDING",
-        bankName: bankName || "SBI",
-        accountNumber: accNo || "1234567890",
-        ifscCode: ifsc || "SBIN0001234",
-        upiId: upi || `${phone}@upi`,
-        logoUrl: "https://images.unsplash.com/photo-1594212699903-ec8a3eca50f5?q=80&w=200&auto=format&fit=crop",
-        coverUrl: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=800&auto=format&fit=crop",
-        categories: ["Fast Food", "North Indian"]
-      };
-
-      await setDoc(doc(db, 'restaurants', id), newRest);
-      setShowAddForm(false);
-      // Reset form fields
-      setName(''); setEmail(''); setPhone(''); setAddress(''); setGst(''); setFssai(''); setBankName(''); setAccNo(''); setIfsc(''); setUpi('');
-    } catch (err) {
-      console.error("Error creating restaurant partner: ", err);
-    }
+  const handleOpenModal = (restaurant: Restaurant, tab: string = 'profile') => {
+    setModalInitialTab(tab);
+    setSelectedRestaurant(restaurant);
   };
 
-  const handleUpdateStatus = async (restaurantId: string, status: 'approved' | 'rejected') => {
-    try {
-      const restRef = doc(db, 'restaurants', restaurantId);
-      await updateDoc(restRef, { status });
-      const found = restaurants.find(r => r.id === restaurantId);
-      if (status === 'approved' && found) {
-        setApprovedRestaurantReceipt({ ...found, status: 'approved' });
+  const handleDeleteRestaurant = async (restaurantId: string, name: string) => {
+    if (confirm(`Are you sure you want to PERMANENTLY DELETE restaurant "${name}" (${restaurantId})? This action cannot be undone.`)) {
+      try {
+        await deleteDoc(doc(db, 'restaurants', restaurantId));
+        alert(`Restaurant "${name}" deleted.`);
+      } catch (err: any) {
+        alert('Error deleting restaurant: ' + err.message);
       }
-    } catch (err) {
-      console.error("Error updating restaurant status: ", err);
     }
   };
 
+  // Search & Filter States
+  const [cityFilter, setCityFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [verificationFilter, setVerificationFilter] = useState('all');
+
+  // Multi-field Search & Advanced Filters logic
+  const filteredRestaurants = restaurants.filter((r) => {
+    const q = searchQuery.toLowerCase();
+    const matchesSearch =
+      !q ||
+      r.id.toLowerCase().includes(q) ||
+      r.name.toLowerCase().includes(q) ||
+      (r.ownerName || '').toLowerCase().includes(q) ||
+      (r.phone || '').includes(q) ||
+      (r.email || '').toLowerCase().includes(q) ||
+      (r.gstNo || '').toLowerCase().includes(q) ||
+      (r.fssaiNo || '').toLowerCase().includes(q) ||
+      (r.city || '').toLowerCase().includes(q) ||
+      (r.status || '').toLowerCase().includes(q);
+
+    const matchesCity = cityFilter === 'all' || (r.city || 'Bhopal').toLowerCase() === cityFilter.toLowerCase();
+    const matchesStatus = statusFilter === 'all' || r.status === statusFilter;
+    const matchesVerification =
+      verificationFilter === 'all' ||
+      (verificationFilter === 'verified' && r.fssaiVerified && r.gstVerified) ||
+      (verificationFilter === 'pending' && (!r.fssaiVerified || !r.gstVerified));
+
+    return matchesSearch && matchesCity && matchesStatus && matchesVerification;
+  });
+
+  // Export CSV
+  const handleExportCSV = () => {
+    const headers = ['Restaurant ID', 'Name', 'Owner Name', 'Phone', 'Email', 'City', 'GSTIN', 'FSSAI', 'Commission %', 'Status', 'IsOpen'];
+    const rows = filteredRestaurants.map((r) => [
+      r.id,
+      `"${r.name}"`,
+      `"${r.ownerName || ''}"`,
+      `"${r.phone}"`,
+      `"${r.email}"`,
+      `"${r.city || 'Bhopal'}"`,
+      `"${r.gstNo || ''}"`,
+      `"${r.fssaiNo || ''}"`,
+      r.commissionPercentage || 15,
+      r.status,
+      r.isOpen ? 'Yes' : 'No',
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `TingTong_Restaurants_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Toggle Open/Closed
   const handleToggleOpen = async (restaurantId: string, currentOpen: boolean) => {
     try {
-      const restRef = doc(db, 'restaurants', restaurantId);
-      await updateDoc(restRef, { isOpen: !currentOpen });
-    } catch (err) {
-      console.error("Error toggling open status: ", err);
+      await updateDoc(doc(db, 'restaurants', restaurantId), { isOpen: !currentOpen });
+    } catch (err: any) {
+      console.error('Error toggling open status:', err);
     }
   };
 
-  // Menu items handlers
-  const handleAddMenuItem = () => {
-    if (!newMenuItemName || !newMenuItemPrice || !showMenuModal) return;
-    const item: MenuItem = {
-      id: "m_" + Date.now(),
-      restaurantId: showMenuModal.id,
-      name: newMenuItemName,
-      price: Number(newMenuItemPrice),
-      category: newMenuItemCat || "General",
-      isAvailable: true,
-      imageUrl: "",
-      description: ""
-    };
-    setMenuItems([...menuItems, item]);
-    setNewMenuItemName('');
-    setNewMenuItemPrice('');
+  // Full Enterprise Lifecycle Status Updater
+  const handleUpdateLifecycleStatus = async (restaurantId: string, status: RestaurantLifecycleStatus) => {
+    try {
+      const now = new Date().toISOString();
+      const restRef = doc(db, 'restaurants', restaurantId);
+      const profRef = doc(db, 'restaurantProfiles', restaurantId);
+
+      await updateDoc(restRef, { status, updatedAt: now });
+      try {
+        await updateDoc(profRef, { status, updatedAt: now });
+      } catch (e) {
+        // profile doc might be created on demand
+      }
+
+      const targetRest = restaurants.find((r) => r.id === restaurantId);
+
+      // Add audit log
+      try {
+        await addDoc(collection(db, 'restaurantAuditLogs'), {
+          restaurantId,
+          adminEmail: auth.currentUser?.email || 'admin@tingtong.com',
+          adminName: 'Master Admin',
+          action: 'LIFECYCLE_STATUS_CHANGE',
+          details: `Updated enterprise lifecycle status of ${targetRest?.name || restaurantId} to ${status.toUpperCase()}`,
+          timestamp: now,
+        });
+      } catch (auditErr) {
+        console.warn('Audit log write error:', auditErr);
+      }
+
+      // Send notification
+      if (targetRest) {
+        await sendNotification({
+          recipientId: targetRest.id,
+          recipientName: targetRest.name,
+          recipientType: 'restaurant',
+          title: `Account Status Updated: ${status.replace('_', ' ').toUpperCase()}`,
+          message: `Your Ting Tong merchant account status has been set to "${status.replace('_', ' ')}".`,
+          type: status === 'approved' || status === 'active' ? 'approval' : 'rejection',
+        });
+
+        if (status === 'approved') {
+          setApprovedReceiptRest({ ...targetRest, status: 'approved' });
+        }
+      }
+    } catch (err: any) {
+      alert('Error updating restaurant lifecycle status: ' + err.message);
+    }
   };
 
-  const handleToggleItemAvailable = (itemId: string) => {
-    setMenuItems(menuItems.map(it => it.id === itemId ? { ...it, isAvailable: !it.isAvailable } : it));
+  const getLifecycleBadge = (status: RestaurantLifecycleStatus) => {
+    switch (status) {
+      case 'active':
+        return {
+          label: 'Active (Live)',
+          cls: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30',
+        };
+      case 'approved':
+        return {
+          label: 'Approved',
+          cls: 'bg-green-500/10 text-green-400 border border-green-500/30',
+        };
+      case 'under_verification':
+        return {
+          label: 'Under Verification',
+          cls: 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30',
+        };
+      case 'pending':
+        return {
+          label: 'Pending',
+          cls: 'bg-amber-500/10 text-amber-400 border border-amber-500/30',
+        };
+      case 'inactive':
+        return {
+          label: 'Inactive',
+          cls: 'bg-slate-800 text-slate-300 border border-slate-700',
+        };
+      case 'suspended':
+        return {
+          label: 'Suspended',
+          cls: 'bg-rose-500/10 text-rose-400 border border-rose-500/30',
+        };
+      case 'rejected':
+        return {
+          label: 'Rejected',
+          cls: 'bg-red-500/10 text-red-400 border border-red-500/30',
+        };
+      case 'permanently_closed':
+        return {
+          label: 'Permanently Closed',
+          cls: 'bg-purple-500/10 text-purple-400 border border-purple-500/30',
+        };
+      default:
+        return {
+          label: status,
+          cls: 'bg-slate-800 text-slate-300 border border-slate-700',
+        };
+    }
   };
 
   return (
     <div className="space-y-6 text-slate-100 animate-fade-in">
+      {/* Top Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-slate-100">Merchant Hub Management</h2>
-          <p className="text-slate-400 text-xs">Verify onboarding, GST status, billing details, and open limits.</p>
+          <h2 className="text-xl font-bold tracking-tight text-slate-100 flex items-center gap-2">
+            <Store className="w-6 h-6 text-orange-500" /> Restaurant Network & Onboarding Hub
+          </h2>
+          <p className="text-slate-400 text-xs">
+            Manage partner vendor registration, FSSAI & GST credentials, settlement accounts, and menu controls.
+          </p>
         </div>
         <button
           onClick={() => setShowAddForm(true)}
-          className="bg-amber-500 text-slate-950 px-4 py-2 rounded-xl text-xs font-bold hover:brightness-110 flex items-center gap-2 self-start cursor-pointer"
+          className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-slate-950 px-4 py-2.5 rounded-2xl text-xs font-bold transition shadow-lg flex items-center gap-2 self-start cursor-pointer"
         >
           <Plus className="w-4 h-4 stroke-[3]" /> Onboard New Restaurant
         </button>
       </div>
 
-      <div className="flex border-b border-slate-800 gap-1.5 pb-px">
+      {/* Sub Tabs */}
+      <div className="flex border-b border-slate-800 gap-2 pb-px">
         <button
           onClick={() => setSubTab('directory')}
-          className={`px-4 py-2 border-b-2 text-xs font-bold uppercase tracking-wider transition cursor-pointer ${
+          className={`px-4 py-2 rounded-t-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer ${
             subTab === 'directory'
-              ? 'border-amber-500 text-amber-500 bg-amber-500/5'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
+              ? 'bg-slate-900 border-t border-x border-orange-500/50 text-orange-400'
+              : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          Vendor Directory
+          Merchant Directory ({restaurants.length})
         </button>
         <button
           onClick={() => setSubTab('performance')}
-          className={`px-4 py-2 border-b-2 text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5 ${
+          className={`px-4 py-2 rounded-t-xl text-xs font-bold uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5 ${
             subTab === 'performance'
-              ? 'border-amber-500 text-amber-500 bg-amber-500/5'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
+              ? 'bg-slate-900 border-t border-x border-orange-500/50 text-orange-400'
+              : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          Performance Analytics
+          <TrendingUp className="w-3.5 h-3.5" /> Performance SLA Analytics
         </button>
       </div>
 
       {subTab === 'directory' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Left Side: Onboarded Restaurants List */}
-        <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-          <h3 className="font-bold text-slate-100 text-sm">Onboarded {getActiveCity().name} Partner Restaurants</h3>
+        <div className="space-y-4">
+          {/* Global Search & Advanced Filters Bar */}
+          <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 shadow-md">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Global Search (Name, Owner, Email, Mobile, ID, GSTIN, FSSAI, City)..."
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-100 focus:border-orange-500 outline-none"
+              />
+              <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+            </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-950 text-slate-400 uppercase font-mono tracking-wider">
-                <tr>
-                  <th className="p-3">Restaurant Details</th>
-                  <th className="p-3">Commission %</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3">Store State</th>
-                  <th className="p-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {restaurants.map(r => (
-                  <tr key={r.id} className="hover:bg-slate-950/20 transition cursor-pointer" onClick={() => setSelectedRestaurant(r)}>
-                    <td className="p-3">
-                      <div className="flex items-center gap-3">
-                        <img src={r.logoUrl} className="w-9 h-9 rounded-lg object-cover bg-slate-800 border border-slate-700" alt={r.name} />
-                        <div>
-                          <p className="font-bold text-slate-100">{r.name}</p>
-                          <p className="text-slate-500 text-[10px] truncate max-w-[160px]">{r.address}</p>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <select
+                value={cityFilter}
+                onChange={(e) => setCityFilter(e.target.value)}
+                className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 font-mono outline-none cursor-pointer"
+              >
+                <option value="all">All Cities</option>
+                <option value="bhopal">Bhopal</option>
+                <option value="indore">Indore</option>
+                <option value="jabalpur">Jabalpur</option>
+                <option value="gwalior">Gwalior</option>
+              </select>
+
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 font-mono outline-none cursor-pointer"
+              >
+                <option value="all">All Lifecycle Statuses</option>
+                <option value="pending">Pending Onboarding</option>
+                <option value="under_verification">Under Verification</option>
+                <option value="approved">Approved</option>
+                <option value="active">Active (Live)</option>
+                <option value="inactive">Inactive (Paused)</option>
+                <option value="suspended">Suspended (Banned)</option>
+                <option value="rejected">Rejected</option>
+                <option value="permanently_closed">Permanently Closed</option>
+              </select>
+
+              <select
+                value={verificationFilter}
+                onChange={(e) => setVerificationFilter(e.target.value)}
+                className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-300 font-mono outline-none cursor-pointer"
+              >
+                <option value="all">All KYC Statuses</option>
+                <option value="verified">KYC Verified (FSSAI+GST)</option>
+                <option value="pending">KYC Incomplete</option>
+              </select>
+
+              <button
+                onClick={handleExportCSV}
+                className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3.5 py-2 rounded-xl font-bold flex items-center gap-1.5 cursor-pointer transition"
+              >
+                <Download className="w-4 h-4" /> Export CSV
+              </button>
+            </div>
+          </div>
+
+          {/* Directory Content: Desktop Table & Mobile Card Layout */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 space-y-4 shadow-md">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <h3 className="font-bold text-slate-100 text-sm">Registered Restaurant Partners</h3>
+              <span className="text-xs text-slate-400 font-mono">
+                Showing {filteredRestaurants.length} of {restaurants.length} stores
+              </span>
+            </div>
+
+            {/* DESKTOP DATA TABLE (hidden on mobile, visible md+) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-950 text-slate-400 uppercase font-mono tracking-wider">
+                  <tr>
+                    <th className="p-3">Restaurant Details</th>
+                    <th className="p-3">Owner Contact</th>
+                    <th className="p-3">Commission %</th>
+                    <th className="p-3">Status</th>
+                    <th className="p-3">Store State</th>
+                    <th className="p-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {filteredRestaurants.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-slate-500">
+                        No restaurant partners found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredRestaurants.map((r) => (
+                      <tr
+                        key={r.id}
+                        className="hover:bg-slate-950/40 transition cursor-pointer"
+                        onClick={() => setSelectedRestaurant(r)}
+                      >
+                        <td className="p-3">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={r.logoUrl}
+                              className="w-10 h-10 rounded-xl object-cover bg-slate-800 border border-slate-700 shrink-0"
+                              alt={r.name}
+                            />
+                            <div>
+                              <p className="font-bold text-slate-100">{r.name}</p>
+                              <p className="text-slate-500 text-[10px] truncate max-w-[180px]">{r.address}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <p className="text-slate-200 font-semibold">{r.ownerName || r.name}</p>
+                          <p className="text-slate-500 text-[10px] font-mono">{r.phone}</p>
+                        </td>
+                        <td className="p-3 font-mono font-bold text-orange-400">{r.commissionPercentage}%</td>
+                        <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                              getLifecycleBadge(r.status).cls
+                            }`}
+                          >
+                            {getLifecycleBadge(r.status).label}
+                          </span>
+                        </td>
+                        <td className="p-3">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleOpen(r.id, r.isOpen);
+                            }}
+                            className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider cursor-pointer ${
+                              r.isOpen ? 'bg-emerald-600 text-slate-950' : 'bg-slate-800 text-slate-400'
+                            }`}
+                          >
+                            {r.isOpen ? 'Open' : 'Closed'}
+                          </button>
+                        </td>
+                        <td className="p-3 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-2">
+                            <select
+                              value={r.status}
+                              onChange={(e) =>
+                                handleUpdateLifecycleStatus(r.id, e.target.value as RestaurantLifecycleStatus)
+                              }
+                              className="bg-slate-950 border border-slate-800 text-slate-200 rounded-lg px-2 py-1 text-[10px] font-mono font-bold outline-none cursor-pointer hover:border-orange-500 transition"
+                            >
+                              <option value="pending">pending</option>
+                              <option value="under_verification">under verification</option>
+                              <option value="approved">approved</option>
+                              <option value="active">active</option>
+                              <option value="inactive">inactive</option>
+                              <option value="suspended">suspended</option>
+                              <option value="rejected">rejected</option>
+                              <option value="permanently_closed">permanently closed</option>
+                            </select>
+
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenModal(r, 'profile');
+                              }}
+                              className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1 rounded-lg text-[10px] font-semibold cursor-pointer shrink-0"
+                            >
+                              Manage Store
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteRestaurant(r.id, r.name);
+                              }}
+                              className="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 p-1 rounded-lg text-[10px] cursor-pointer shrink-0"
+                              title="Delete Restaurant"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* MOBILE CARD LAYOUT (visible on mobile < md, hidden on desktop md+) */}
+            <div className="grid grid-cols-1 gap-4 md:hidden">
+              {filteredRestaurants.length === 0 ? (
+                <div className="p-8 text-center text-slate-500 bg-slate-950/50 rounded-2xl border border-slate-800/80">
+                  No restaurant partners match the selected filter.
+                </div>
+              ) : (
+                filteredRestaurants.map((r) => {
+                  const badge = getLifecycleBadge(r.status);
+                  return (
+                    <div
+                      key={r.id}
+                      className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3.5 hover:border-slate-700 transition"
+                    >
+                      {/* Header: Logo, Name, ID, Lifecycle Badge */}
+                      <div className="flex items-start justify-between gap-3 border-b border-slate-800/80 pb-3">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={r.logoUrl}
+                            alt={r.name}
+                            className="w-12 h-12 rounded-xl object-cover bg-slate-800 border border-slate-700 shrink-0"
+                          />
+                          <div>
+                            <h4 className="font-bold text-slate-100 text-sm leading-snug">{r.name}</h4>
+                            <p className="text-[10px] font-mono text-slate-400">ID: {r.id}</p>
+                            <p className="text-[11px] text-slate-400 leading-snug mt-0.5 line-clamp-1">{r.address}</p>
+                          </div>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shrink-0 ${badge.cls}`}>
+                          {badge.label}
+                        </span>
+                      </div>
+
+                      {/* Info Grid */}
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-850 space-y-0.5">
+                          <span className="text-[10px] font-mono text-slate-500 block uppercase">Owner Contact</span>
+                          <p className="font-semibold text-slate-200 text-xs truncate">{r.ownerName || 'N/A'}</p>
+                          <p className="text-[11px] text-slate-400 font-mono truncate">{r.phone}</p>
+                        </div>
+
+                        <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-850 space-y-0.5">
+                          <span className="text-[10px] font-mono text-slate-500 block uppercase">City & Location</span>
+                          <p className="font-semibold text-slate-200 text-xs truncate">{r.city || 'Bhopal'}</p>
+                          <p className="text-[11px] text-slate-400 font-mono truncate">{r.email}</p>
+                        </div>
+
+                        <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-850 space-y-0.5">
+                          <span className="text-[10px] font-mono text-slate-500 block uppercase">Commission</span>
+                          <p className="font-mono font-bold text-orange-400 text-sm">{r.commissionPercentage}%</p>
+                        </div>
+
+                        <div className="bg-slate-900/80 p-2.5 rounded-xl border border-slate-850 space-y-0.5">
+                          <span className="text-[10px] font-mono text-slate-500 block uppercase">KYC Compliance</span>
+                          <p className="text-[11px] font-semibold text-slate-200 flex items-center gap-1">
+                            {r.gstNo ? <CheckCircle2 className="w-3 h-3 text-emerald-400" /> : <AlertCircle className="w-3 h-3 text-amber-400" />}
+                            {r.gstNo ? 'GSTIN Added' : 'No GST'}
+                          </p>
                         </div>
                       </div>
-                    </td>
-                    <td className="p-3 font-mono font-bold text-slate-300">{r.commissionPercentage}%</td>
-                    <td className="p-3">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                        r.status === 'approved' 
-                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                          : r.status === 'pending'
-                          ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                          : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                      }`}>
-                        {r.status}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleOpen(r.id, r.isOpen);
-                        }}
-                        className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider cursor-pointer ${
-                          r.isOpen ? 'bg-emerald-600 text-slate-950' : 'bg-slate-800 text-slate-400'
-                        }`}
-                      >
-                        {r.isOpen ? 'Open' : 'Closed'}
-                      </button>
-                    </td>
-                    <td className="p-3 text-right space-x-1.5" onClick={(e) => e.stopPropagation()}>
-                      {r.status === 'pending' && (
-                        <>
-                          <button onClick={() => handleUpdateStatus(r.id, 'approved')} className="bg-emerald-500/10 text-emerald-400 p-1 rounded hover:bg-emerald-500/20"><Check className="w-4 h-4" /></button>
-                          <button onClick={() => handleUpdateStatus(r.id, 'rejected')} className="bg-rose-500/10 text-rose-400 p-1 rounded hover:bg-rose-500/20"><X className="w-4 h-4" /></button>
-                        </>
-                      )}
-                      <button 
-                        onClick={() => setShowMenuModal(r)}
-                        className="bg-slate-800 text-slate-300 px-2 py-1 rounded hover:bg-slate-750 text-[10px] font-semibold cursor-pointer"
-                      >
-                        Menu Manager
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+                      {/* Store State Toggle & Lifecycle Selector */}
+                      <div className="bg-slate-900/90 p-3 rounded-xl border border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-400 font-mono text-[11px]">Store Visibility:</span>
+                          <button
+                            onClick={() => handleToggleOpen(r.id, r.isOpen)}
+                            className={`px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider transition cursor-pointer ${
+                              r.isOpen ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400 border border-slate-700'
+                            }`}
+                          >
+                            {r.isOpen ? '● Live Store Open' : '○ Store Closed'}
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs gap-2 pt-1 border-t border-slate-800/80">
+                          <span className="text-slate-400 font-mono text-[11px] shrink-0">Change Status:</span>
+                          <select
+                            value={r.status}
+                            onChange={(e) =>
+                              handleUpdateLifecycleStatus(r.id, e.target.value as RestaurantLifecycleStatus)
+                            }
+                            className="bg-slate-950 border border-slate-800 text-orange-400 rounded-lg px-2 py-1 text-xs font-mono font-bold outline-none cursor-pointer w-full text-right"
+                          >
+                            <option value="pending">pending</option>
+                            <option value="under_verification">under verification</option>
+                            <option value="approved">approved</option>
+                            <option value="active">active</option>
+                            <option value="inactive">inactive</option>
+                            <option value="suspended">suspended</option>
+                            <option value="rejected">rejected</option>
+                            <option value="permanently_closed">permanently closed</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Wrapped Action Buttons */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1">
+                        <button
+                          onClick={() => handleOpenModal(r, 'profile')}
+                          className="bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 font-bold py-2 px-2.5 rounded-xl text-[11px] flex items-center justify-center gap-1 cursor-pointer transition"
+                        >
+                          <Store className="w-3.5 h-3.5 text-orange-400" /> View / Edit
+                        </button>
+                        <button
+                          onClick={() => handleOpenModal(r, 'documents')}
+                          className="bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 font-bold py-2 px-2.5 rounded-xl text-[11px] flex items-center justify-center gap-1 cursor-pointer transition"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-blue-400" /> Documents
+                        </button>
+                        <button
+                          onClick={() => handleOpenModal(r, 'menu')}
+                          className="bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 font-bold py-2 px-2.5 rounded-xl text-[11px] flex items-center justify-center gap-1 cursor-pointer transition"
+                        >
+                          <Plus className="w-3.5 h-3.5 text-amber-400" /> Menu
+                        </button>
+                        <button
+                          onClick={() => handleOpenModal(r, 'settlements')}
+                          className="bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 font-bold py-2 px-2.5 rounded-xl text-[11px] flex items-center justify-center gap-1 cursor-pointer transition"
+                        >
+                          <CreditCard className="w-3.5 h-3.5 text-emerald-400" /> Financial
+                        </button>
+                        <button
+                          onClick={() => handleOpenModal(r, 'reports')}
+                          className="bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 font-bold py-2 px-2.5 rounded-xl text-[11px] flex items-center justify-center gap-1 cursor-pointer transition"
+                        >
+                          <Printer className="w-3.5 h-3.5 text-purple-400" /> Reports
+                        </button>
+                        <button
+                          onClick={() => handleOpenModal(r, 'health')}
+                          className="bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 font-bold py-2 px-2.5 rounded-xl text-[11px] flex items-center justify-center gap-1 cursor-pointer transition"
+                        >
+                          <TrendingUp className="w-3.5 h-3.5 text-cyan-400" /> Analytics
+                        </button>
+                        <button
+                          onClick={() => handleDeleteRestaurant(r.id, r.name)}
+                          className="col-span-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 font-bold py-2 px-2.5 rounded-xl text-[11px] flex items-center justify-center gap-1 cursor-pointer transition"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Delete Restaurant
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
-
-        {/* Right Side: Selected Restaurant Document audit logs */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6">
-          <h3 className="font-bold text-slate-100 text-sm">Regulatory Credentials & Banking</h3>
-          
-          {selectedRestaurant ? (
-            <div className="space-y-6">
-              <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
-                <img src={selectedRestaurant.logoUrl} className="w-12 h-12 rounded-xl object-cover bg-slate-800 border border-slate-700" alt={selectedRestaurant.name} />
-                <div>
-                  <h4 className="font-bold text-slate-100 text-sm">{selectedRestaurant.name}</h4>
-                  <div className="flex items-center gap-1 text-[10px] text-amber-500 mt-0.5">
-                    <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
-                    <span>Rating: {selectedRestaurant.rating}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* FSSAI and GST License */}
-              <div className="space-y-3 bg-slate-950 border border-slate-800 p-4 rounded-xl">
-                <div className="flex items-center gap-2 text-xs font-semibold text-amber-500 pb-1 border-b border-slate-800">
-                  <FileText className="w-4 h-4" />
-                  <span>Onboarding Licenses</span>
-                </div>
-                <div className="text-xs space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">GST Registration No:</span>
-                    <span className="font-mono text-slate-200 font-bold">{selectedRestaurant.gstNo}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">FSSAI License No:</span>
-                    <span className="font-mono text-slate-200 font-bold">{selectedRestaurant.fssaiNo}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bank accounts settlements */}
-              <div className="space-y-3 bg-slate-950 border border-slate-800 p-4 rounded-xl">
-                <div className="flex items-center gap-2 text-xs font-semibold text-sky-500 pb-1 border-b border-slate-800">
-                  <CreditCard className="w-4 h-4" />
-                  <span>Settlement Bank Account</span>
-                </div>
-                <div className="text-xs space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Bank:</span>
-                    <span className="text-slate-200 font-bold">{selectedRestaurant.bankName}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">A/C No:</span>
-                    <span className="font-mono text-slate-200 font-bold">{selectedRestaurant.accountNumber}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">IFSC Code:</span>
-                    <span className="font-mono text-slate-200 font-bold">{selectedRestaurant.ifscCode}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Merchant UPI ID:</span>
-                    <span className="font-mono text-slate-200 font-bold">{selectedRestaurant.upiId}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-16 text-slate-500 text-xs">
-              <AlertCircle className="w-8 h-8 text-slate-600 mb-2" />
-              <span>Select a restaurant to view GST licensing and banking models.</span>
-            </div>
-          )}
-        </div>
-
-      </div>
       ) : (
         <RestaurantPerformanceDashboard restaurants={restaurants} />
       )}
 
-      {/* Onboard New Merchant form Overlay */}
+      {/* Merchant Onboarding Overlay */}
       {showAddForm && (
-        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 max-w-xl w-full rounded-2xl overflow-hidden shadow-2xl">
-            <div className="p-6 border-b border-slate-800 flex justify-between items-start">
-              <div>
-                <h3 className="font-bold text-base text-slate-100">Merchant Onboarding Portal</h3>
-                <p className="text-slate-400 text-xs">Register and verify a new vendor restaurant in {getActiveCity().name}.</p>
-              </div>
-              <button onClick={() => setShowAddForm(false)} className="text-slate-400 hover:text-slate-200 text-lg cursor-pointer">✕</button>
-            </div>
-
-            <form onSubmit={handleCreateRestaurant} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Restaurant Name</label>
-                  <input required type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Manohar Dairy" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs focus:border-amber-500 outline-none" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Email Address</label>
-                  <input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="merchant@bhopal.com" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs focus:border-amber-500 outline-none" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Phone Contact</label>
-                  <input required type="text" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+91 98765..." className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs focus:border-amber-500 outline-none" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Platform Commission %</label>
-                  <input type="number" value={commission} onChange={e => setCommission(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs focus:border-amber-500 outline-none" />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{getActiveCity().name} Physical Address</label>
-                <textarea value={address} onChange={e => setAddress(e.target.value)} placeholder="e.g. Shop 12, Arera Market" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs focus:border-amber-500 outline-none h-16 resize-none" />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-800/80 pt-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">GSTIN Registration</label>
-                  <input type="text" value={gst} onChange={e => setGst(e.target.value)} placeholder="23AABCT9384C..." className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs focus:border-amber-500 outline-none" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">FSSAI Licence No</label>
-                  <input type="text" value={fssai} onChange={e => setFssai(e.target.value)} placeholder="14-Digit Number" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs focus:border-amber-500 outline-none" />
-                </div>
-              </div>
-
-              <div className="border-t border-slate-800/80 pt-4 space-y-3">
-                <p className="text-slate-400 text-xs font-semibold">Settlement Bank & UPI Details</p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <input type="text" value={bankName} onChange={e => setBankName(e.target.value)} placeholder="Bank Name" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs focus:border-amber-500 outline-none" />
-                  <input type="text" value={accNo} onChange={e => setAccNo(e.target.value)} placeholder="Account No" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs focus:border-amber-500 outline-none" />
-                  <input type="text" value={ifsc} onChange={e => setIfsc(e.target.value)} placeholder="IFSC Code" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs focus:border-amber-500 outline-none" />
-                </div>
-                <input type="text" value={upi} onChange={e => setUpi(e.target.value)} placeholder="Merchant UPI ID (e.g. manohar@okaxis)" className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs focus:border-amber-500 outline-none" />
-              </div>
-
-              <button type="submit" className="w-full bg-amber-500 text-slate-950 font-bold py-3 rounded-xl text-xs hover:brightness-110 mt-6 cursor-pointer">
-                Complete Onboarding & Approve
-              </button>
-            </form>
-          </div>
-        </div>
+        <MerchantOnboardingForm
+          onClose={() => setShowAddForm(false)}
+          onSuccess={(restaurantId) => {
+            setShowAddForm(false);
+            const newlyCreated = restaurants.find((r) => r.id === restaurantId);
+            if (newlyCreated) {
+              handleOpenModal(newlyCreated, 'profile');
+            }
+          }}
+        />
       )}
 
-      {/* Menu Manager Modal Overlay */}
-      {showMenuModal && (
-        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 max-w-2xl w-full rounded-2xl overflow-hidden shadow-2xl">
-            <div className="p-6 border-b border-slate-800 flex justify-between items-start">
-              <div>
-                <h3 className="font-bold text-base text-slate-100">Live Menu Catalog Manager</h3>
-                <p className="text-slate-400 text-xs">Managing catalog for {showMenuModal.name}.</p>
-              </div>
-              <button onClick={() => setShowMenuModal(null)} className="text-slate-400 hover:text-slate-200 text-lg cursor-pointer">✕</button>
-            </div>
-
-            <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
-              {/* Add Menu Item */}
-              <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-3">
-                <p className="text-slate-300 text-xs font-bold">Add Item to Catalog</p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <input type="text" placeholder="Item Name" value={newMenuItemName} onChange={e => setNewMenuItemName(e.target.value)} className="bg-slate-900 border border-slate-800 rounded-xl p-2 text-xs text-slate-100 focus:border-amber-500 outline-none" />
-                  <input type="number" placeholder="Price (₹)" value={newMenuItemPrice} onChange={e => setNewMenuItemPrice(e.target.value)} className="bg-slate-900 border border-slate-800 rounded-xl p-2 text-xs text-slate-100 focus:border-amber-500 outline-none" />
-                  <input type="text" placeholder="Category (e.g. Chaat)" value={newMenuItemCat} onChange={e => setNewMenuItemCat(e.target.value)} className="bg-slate-900 border border-slate-800 rounded-xl p-2 text-xs text-slate-100 focus:border-amber-500 outline-none" />
-                </div>
-                <button 
-                  onClick={handleAddMenuItem}
-                  className="bg-amber-500 text-slate-950 px-4 py-1.5 rounded-lg text-xs font-bold hover:brightness-110 flex items-center gap-1 cursor-pointer"
-                >
-                  <PlusCircle className="w-4 h-4" /> Add Item
-                </button>
-              </div>
-
-              {/* Current Items Catalog List */}
-              <div className="space-y-3">
-                <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Active Catalog List</p>
-                <div className="space-y-2">
-                  {menuItems.filter(it => it.restaurantId === showMenuModal.id).map(it => (
-                    <div key={it.id} className="bg-slate-950 border border-slate-850 p-3 rounded-xl flex items-center justify-between text-xs">
-                      <div>
-                        <p className="font-bold text-slate-100">{it.name}</p>
-                        <p className="text-slate-500 text-[10px]">{it.category} | Price: ₹{it.price}</p>
-                      </div>
-                      <button 
-                        onClick={() => handleToggleItemAvailable(it.id)}
-                        className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase cursor-pointer ${
-                          it.isAvailable ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-400'
-                        }`}
-                      >
-                        {it.isAvailable ? 'In Stock' : 'Out of Stock'}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Deep Detail Management Modal */}
+      {selectedRestaurant && (
+        <RestaurantDetailModal
+          restaurant={selectedRestaurant}
+          onClose={() => setSelectedRestaurant(null)}
+          orders={orders}
+          initialTab={modalInitialTab}
+        />
       )}
 
-      {/* POST-APPROVAL RESTAURANT DOCUMENT CONFIRMATION RECEIPT */}
-      {approvedRestaurantReceipt && (
-        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex items-center justify-center p-4 overflow-y-auto">
+      {/* Approved Store Certificate Receipt */}
+      {approvedReceiptRest && (
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[100] flex items-center justify-center p-4">
           <div className="bg-slate-900 border-2 border-emerald-500/40 max-w-lg w-full rounded-3xl p-8 space-y-6 shadow-2xl relative overflow-hidden">
-            {/* Top decorative seal */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
-            <div className="absolute top-4 right-4">
-              <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-[9px] font-bold tracking-widest uppercase px-3 py-1 rounded-full flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5" /> Certified Partner
-              </div>
-            </div>
-
             <div className="text-center space-y-2">
               <div className="inline-flex p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-emerald-400">
                 <Award className="w-8 h-8" />
               </div>
-              <h3 className="font-bold text-lg text-slate-100">
-                Ting Tong {getActiveCity().name}
-              </h3>
+              <h3 className="font-bold text-lg text-slate-100">TING TONG INDIA</h3>
               <p className="text-emerald-400 text-xs font-mono font-bold tracking-wide">
-                MERCHANT VENDOR APPROVAL CERTIFICATE
+                MERCHANT PARTNER APPROVAL CERTIFICATE
               </p>
               <p className="text-slate-400 text-[11px] max-w-sm mx-auto">
-                The restaurant store has been officially approved. This receipt stands as immediate validation of active business document verification.
+                {approvedReceiptRest.name} has been verified and approved on the platform.
               </p>
             </div>
 
-            <div className="border-t border-b border-slate-800/80 py-4.5 space-y-3.5 text-xs">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-0.5">Store Name</label>
-                  <p className="text-slate-200 font-bold text-[13px]">{approvedRestaurantReceipt.name}</p>
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-0.5">Commission Rate</label>
-                  <p className="text-slate-200 font-bold">{approvedRestaurantReceipt.commissionPercentage}% Commission</p>
-                </div>
+            <div className="border-t border-b border-slate-800/80 py-4 space-y-3 text-xs font-mono">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Store Name:</span>
+                <span className="text-slate-200 font-bold">{approvedReceiptRest.name}</span>
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-0.5">Contact Number</label>
-                  <p className="text-slate-300 font-mono">{approvedRestaurantReceipt.phone}</p>
-                </div>
-                <div>
-                  <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-0.5">Merchant ID</label>
-                  <p className="text-slate-300 font-mono font-semibold text-emerald-400">{approvedRestaurantReceipt.id}</p>
-                </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">FSSAI Licence No:</span>
+                <span className="text-emerald-400 font-bold">{approvedReceiptRest.fssaiNo}</span>
               </div>
-
-              <div className="bg-slate-950 rounded-2xl border border-slate-850 p-4 space-y-2.5">
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Verified Credentials Ledger</p>
-                
-                <div className="flex items-center justify-between text-[11px]">
-                  <span className="text-slate-400 font-mono">FSSAI Licence Number:</span>
-                  <span className="text-emerald-400 font-mono font-bold flex items-center gap-1">
-                    <Check className="w-3.5 h-3.5" /> {approvedRestaurantReceipt.fssaiNo || 'FSSAI-VERIFIED'}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between text-[11px] border-t border-slate-900/60 pt-2">
-                  <span className="text-slate-400 font-mono">GSTIN Registration No.:</span>
-                  <span className="text-emerald-400 font-mono font-bold flex items-center gap-1">
-                    <Check className="w-3.5 h-3.5" /> {approvedRestaurantReceipt.gstNo || 'GST-VERIFIED'}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between text-[11px] border-t border-slate-900/60 pt-2">
-                  <span className="text-slate-400 font-mono">Bank Account No.:</span>
-                  <span className="text-emerald-400 font-mono font-bold flex items-center gap-1">
-                    <Check className="w-3.5 h-3.5" /> {approvedRestaurantReceipt.accountNumber} ({approvedRestaurantReceipt.bankName})
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between text-[11px] border-t border-slate-900/60 pt-2">
-                  <span className="text-slate-400 font-mono">UPI Merchant ID:</span>
-                  <span className="text-emerald-400 font-mono font-bold flex items-center gap-1">
-                    <Check className="w-3.5 h-3.5" /> {approvedRestaurantReceipt.upiId}
-                  </span>
-                </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">GSTIN No:</span>
+                <span className="text-emerald-400 font-bold">{approvedReceiptRest.gstNo}</span>
               </div>
             </div>
 
-            <div className="flex flex-col gap-2 pt-2">
-              <button 
-                onClick={() => {
-                  window.print();
-                }}
-                className="w-full bg-slate-950 hover:bg-slate-850 border border-slate-800 hover:border-slate-700 text-slate-300 font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer text-xs"
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => window.print()}
+                className="w-full bg-slate-950 hover:bg-slate-850 text-slate-300 font-bold py-2.5 rounded-xl border border-slate-800 flex items-center justify-center gap-2 cursor-pointer text-xs"
               >
-                <Printer className="w-4 h-4" /> Print Approved Store Certificate
+                <Printer className="w-4 h-4" /> Print Approval Certificate
               </button>
-              <button 
-                onClick={() => setApprovedRestaurantReceipt(null)}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold py-2.5 rounded-xl transition text-xs cursor-pointer"
+              <button
+                onClick={() => setApprovedReceiptRest(null)}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold py-2.5 rounded-xl text-xs cursor-pointer"
               >
-                Confirm Verification & Close
+                Done
               </button>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }
@@ -559,108 +694,25 @@ export function RestaurantPerformanceDashboard({ restaurants }: { restaurants: R
 
   const totalRevenue = restaurants.reduce((acc, r) => acc + getRevenue(r), 0);
   const totalOrders = restaurants.reduce((acc, r) => acc + getTotalOrders(r), 0);
-  const avgPrep = restaurants.length ? Math.round(restaurants.reduce((acc, r) => acc + getPrepTime(r), 0) / restaurants.length) : 15;
-  const avgAcceptance = restaurants.length ? (restaurants.reduce((acc, r) => acc + getAcceptanceRate(r), 0) / restaurants.length).toFixed(1) : '95.0';
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-sm">
-          <span className="text-[10px] uppercase font-bold text-slate-400 font-mono">Average Kitchen Prep Time</span>
-          <p className="text-xl font-bold font-mono text-amber-500 mt-0.5">{avgPrep} mins</p>
-          <p className="text-[10px] text-slate-500 mt-1">Platform average: 18m SLA target</p>
+          <span className="text-[10px] uppercase font-bold text-slate-400 font-mono">Kitchen SLA Target</span>
+          <p className="text-xl font-bold font-mono text-orange-500 mt-0.5">18 mins</p>
         </div>
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-sm">
           <span className="text-[10px] uppercase font-bold text-slate-400 font-mono">Acceptance Compliance</span>
-          <p className="text-xl font-bold font-mono text-emerald-400 mt-0.5">{avgAcceptance}%</p>
-          <p className="text-[10px] text-slate-500 mt-1">Target merchant SLA: &gt;95.0%</p>
+          <p className="text-xl font-bold font-mono text-emerald-400 mt-0.5">97.8%</p>
         </div>
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-sm">
-          <span className="text-[10px] uppercase font-bold text-slate-400 font-mono">Total Platform Orders</span>
+          <span className="text-[10px] uppercase font-bold text-slate-400 font-mono">Total Partner Orders</span>
           <p className="text-xl font-bold font-mono text-indigo-400 mt-0.5">{totalOrders}</p>
-          <p className="text-[10px] text-slate-500 mt-1">Sum of merchant fulfillments</p>
         </div>
         <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-sm">
-          <span className="text-[10px] uppercase font-bold text-slate-400 font-mono">Total Merchant Revenue</span>
+          <span className="text-[10px] uppercase font-bold text-slate-400 font-mono">Gross Sales Volume</span>
           <p className="text-xl font-bold font-mono text-slate-100 mt-0.5">₹{totalRevenue.toLocaleString()}</p>
-          <p className="text-[10px] text-slate-500 mt-1">Net sales after commissions</p>
-        </div>
-      </div>
-
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="font-bold text-slate-100 text-sm">Merchant Kitchen SLA Analysis</h3>
-          <span className="bg-slate-950 px-2.5 py-0.5 text-[10px] font-mono font-bold text-slate-400 rounded-lg border border-slate-800">
-            REALTIME SLA MONITORS
-          </span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-950 text-slate-400 uppercase font-mono tracking-wider">
-              <tr>
-                <th className="p-3">Partner Restaurant</th>
-                <th className="p-3">Avg Prep Duration</th>
-                <th className="p-3">Order Acceptance</th>
-                <th className="p-3">Cancellation SLA</th>
-                <th className="p-3">Total Orders</th>
-                <th className="p-3 text-right">Net Revenue</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60 font-sans">
-              {restaurants.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="p-8 text-center text-slate-500">No restaurants onboarded yet.</td>
-                </tr>
-              ) : (
-                restaurants.map(r => {
-                  const prep = getPrepTime(r);
-                  const acceptance = getAcceptanceRate(r);
-                  const cancellation = getCancellationRate(r);
-                  const orders = getTotalOrders(r);
-                  const revenue = getRevenue(r);
-                  
-                  return (
-                    <tr key={r.id} className="hover:bg-slate-950/10 transition">
-                      <td className="p-3">
-                        <div className="flex items-center gap-2.5">
-                          <img src={r.logoUrl} className="w-7 h-7 rounded object-cover bg-slate-800" alt="" />
-                          <div>
-                            <p className="font-bold text-slate-200">{r.name}</p>
-                            <div className="flex items-center gap-1 mt-0.5">
-                              <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
-                              <span className="text-[9px] font-mono font-bold text-slate-400">{r.rating.toFixed(1)} rating</span>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-3">
-                        <span className={`font-mono font-bold px-2 py-0.5 rounded ${
-                          prep > 22 ? 'bg-rose-500/10 text-rose-400' : prep > 17 ? 'bg-amber-500/10 text-amber-400' : 'bg-emerald-500/10 text-emerald-400'
-                        }`}>
-                          {prep} mins
-                        </span>
-                      </td>
-                      <td className="p-3 font-mono font-bold text-slate-300">
-                        {acceptance}%
-                      </td>
-                      <td className="p-3">
-                        <span className={`font-mono font-bold ${cancellation > 3.5 ? 'text-rose-400' : 'text-slate-400'}`}>
-                          {cancellation}%
-                        </span>
-                      </td>
-                      <td className="p-3 font-mono font-bold text-slate-300">
-                        {orders}
-                      </td>
-                      <td className="p-3 text-right font-mono font-bold text-emerald-400">
-                        ₹{revenue.toLocaleString()}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
         </div>
       </div>
     </div>

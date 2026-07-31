@@ -41,7 +41,7 @@ export default function RefundDialog({
   // Initialize refund amount when type changes
   useEffect(() => {
     if (refundType === 'full') {
-      setRefundAmount(order.totalAmount.toString());
+      setRefundAmount((order?.totalAmount ?? 0).toString());
     } else {
       setRefundAmount('');
     }

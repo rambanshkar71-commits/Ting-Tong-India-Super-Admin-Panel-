@@ -52,6 +52,12 @@ interface RidersViewProps {
 export default function RidersView({ riders, orders = [], zones = [] }: RidersViewProps) {
   const [subTab, setSubTab] = useState<'directory' | 'live-fleet'>('directory');
   const [showAddForm, setShowAddForm] = useState(false);
+
+  useEffect(() => {
+    const handleAdd = () => setShowAddForm(true);
+    window.addEventListener('open-add-rider', handleAdd);
+    return () => window.removeEventListener('open-add-rider', handleAdd);
+  }, []);
   const [selectedRider, setSelectedRider] = useState<Rider | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'suspended'>('all');
   const [workZones, setWorkZones] = useState<WorkZone[]>(zones as WorkZone[]);
@@ -493,7 +499,8 @@ export default function RidersView({ riders, orders = [], zones = [] }: RidersVi
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-950 text-slate-400 uppercase font-mono tracking-wider">
                   <tr>
@@ -609,6 +616,117 @@ export default function RidersView({ riders, orders = [], zones = [] }: RidersVi
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Stacked Card Layout */}
+            <div className="block md:hidden space-y-3">
+              {filteredRiders.map(r => {
+                const isSelected = selectedRider?.id === r.id;
+                const lastActiveStr = (r as any).lastActiveAt || (r as any).lastLocationUpdate;
+                const onlineStatus = (r.onlineStatus || '').toUpperCase();
+                const dutyStatus = (r.dutyStatus || '').toUpperCase();
+                let timeAgo = 'Offline';
+                if (onlineStatus === 'ONLINE') {
+                  timeAgo = 'Active now';
+                } else if (lastActiveStr) {
+                  const mins = Math.floor((Date.now() - new Date(lastActiveStr).getTime()) / 60000);
+                  timeAgo = mins < 1 ? 'Just now' : mins < 60 ? `${mins}m ago` : `${Math.floor(mins / 60)}h ago`;
+                }
+
+                return (
+                  <div
+                    key={r.id}
+                    onClick={() => {
+                      setSelectedRider(r);
+                      setVerifiedDocs({
+                        aadhaarFront: !!r.aadhaarFrontUrl,
+                        aadhaarBack: !!r.aadhaarBackUrl,
+                        panCard: !!r.panCardUrl,
+                        dl: !!r.drivingLicenceUrl,
+                        rc: !!r.rcUrl,
+                        insurance: !!r.insuranceUrl,
+                        profilePhoto: !!r.profilePhotoUrl,
+                        liveSelfie: !!r.liveSelfieUrl,
+                      });
+                    }}
+                    className={`bg-slate-950/80 border p-4 rounded-xl space-y-3 cursor-pointer transition ${
+                      isSelected ? 'border-amber-500 ring-1 ring-amber-500/50' : 'border-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3 border-b border-slate-850 pb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <img
+                            src={r.profilePhotoUrl || r.liveSelfieUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&auto=format&fit=crop&q=60"}
+                            className="w-10 h-10 rounded-full object-cover border border-slate-700 shrink-0"
+                            referrerPolicy="no-referrer"
+                          />
+                          <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-slate-900 ${onlineStatus === 'ONLINE' ? 'bg-emerald-500' : 'bg-slate-500'}`} />
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-100 text-sm">{r.name}</p>
+                          <p className="text-amber-500 text-xs font-mono font-bold">ID: {r.id}</p>
+                        </div>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
+                        r.status === 'approved'
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                          : r.status === 'pending'
+                          ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                          : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                      }`}>
+                        {r.status === 'approved' ? 'Approved' : r.status === 'pending' ? 'Pending' : 'Suspended'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-slate-500 block text-[10px] uppercase font-mono font-semibold">Duty & Status</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                            dutyStatus === 'ON_DUTY' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-800 text-slate-400'
+                          }`}>
+                            {dutyStatus === 'ON_DUTY' ? '🟢 On Duty' : '🔴 Off Duty'}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                            onlineStatus === 'ONLINE' ? 'bg-sky-500/10 text-sky-400' : 'bg-slate-800 text-slate-500'
+                          }`}>
+                            {onlineStatus === 'ONLINE' ? '⚡ Online' : '💤 Offline'}
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[10px] uppercase font-mono font-semibold">Contact</span>
+                        <p className="text-slate-200 font-medium text-xs mt-1">{r.phone}</p>
+                        <p className="text-slate-500 text-[10px] truncate">{r.email}</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-xs pt-2 border-t border-slate-850">
+                      <div>
+                        <span className="text-slate-500 block text-[10px] uppercase font-mono">Location</span>
+                        <p className="text-slate-300 text-xs font-medium truncate mt-0.5">
+                          {(() => {
+                            const wz = getZoneForRider(r, workZones);
+                            return wz ? wz.name : (r.city || getActiveCity().name);
+                          })()}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[10px] uppercase font-mono">COD Limit</span>
+                        <p className="text-amber-500 font-mono font-bold text-xs mt-0.5">₹{r.codLimit || 5000}</p>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[10px] uppercase font-mono">Wallet</span>
+                        <p className="text-slate-200 font-mono font-bold text-xs mt-0.5">₹{r.walletBalance}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {filteredRiders.length === 0 && (
+                <div className="p-8 text-center text-slate-500 text-xs">कोई डिलेवरी पार्टनर नहीं मिला।</div>
+              )}
             </div>
           </div>
 

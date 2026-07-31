@@ -12,15 +12,22 @@ import {
   XCircle, 
   Clock, 
   DollarSign, 
-  Percent, 
   Store, 
   Bike, 
   Users,
   MapPin,
   ArrowRight,
-  ExternalLink,
   ChevronRight,
-  Navigation
+  AlertTriangle,
+  Activity,
+  ShieldCheck,
+  Zap,
+  Plus,
+  Headphones,
+  Calendar,
+  FileCheck2,
+  Receipt,
+  LifeBuoy
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -29,13 +36,20 @@ interface DashboardViewProps {
   restaurants: Restaurant[];
   customers: Customer[];
   onOpenLiveTracking?: () => void;
+  onNavigateTab?: (tab: string) => void;
 }
 
-export default function DashboardView({ orders, riders, restaurants, customers, onOpenLiveTracking }: DashboardViewProps) {
+export default function DashboardView({ orders, riders, restaurants, customers, onOpenLiveTracking, onNavigateTab }: DashboardViewProps) {
   const [selectedCityId, setSelectedCityId] = useState<string>('all');
   const [selectedWorkZoneId, setSelectedWorkZoneId] = useState<string>('all');
   const [workZones, setWorkZones] = useState<WorkZone[]>([]);
-  const [selectedRiderOnMap, setSelectedRiderOnMap] = useState<Rider | null>(null);
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
+
+  // Live Clock Ticker
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Real-time Firestore workZones listener
   useEffect(() => {
@@ -96,397 +110,548 @@ export default function DashboardView({ orders, riders, restaurants, customers, 
     });
   }, [orders, selectedCityId, selectedWorkZoneId, workZones]);
 
-  // 1. Calculate Core Telemetry Statistics based on Scoped Data
+  // Calculate Core KPI Statistics based on Scoped Data
   const todayStart = new Date();
   todayStart.setHours(0,0,0,0);
 
   const todayOrders = scopedOrders.filter(o => new Date(o.createdAt) >= todayStart);
-  
-  const liveOrders = scopedOrders.filter(o => 
-    o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'refunded'
-  );
-  
+  const liveOrders = scopedOrders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'refunded');
   const completedOrders = scopedOrders.filter(o => o.status === 'delivered');
   const cancelledOrders = scopedOrders.filter(o => o.status === 'cancelled');
-  const pendingOrders = scopedOrders.filter(o => o.status === 'pending');
 
   const todayRevenue = todayOrders
     .filter(o => o.paymentStatus === 'paid' && o.status !== 'cancelled')
     .reduce((sum, o) => sum + o.totalAmount, 0);
 
-  const totalPlatformCommission = scopedOrders
-    .filter(o => o.paymentStatus === 'paid' && o.status !== 'cancelled')
-    .reduce((sum, o) => sum + o.platformCommission, 0);
-
-  const totalRestaurantEarnings = scopedOrders
-    .filter(o => o.paymentStatus === 'paid' && o.status !== 'cancelled')
-    .reduce((sum, o) => sum + o.restaurantEarnings, 0);
-
-  const totalRiderEarnings = scopedOrders
-    .filter(o => o.paymentStatus === 'paid' && o.status !== 'cancelled')
-    .reduce((sum, o) => sum + o.riderEarnings, 0);
-
-  const activeCustomersCount = customers.filter(c => c.status === 'active').length;
   const activeRestaurantsCount = restaurants.filter(r => r.status === 'approved').length;
-  const activeRidersCount = scopedRiders.filter(r => r.status === 'approved').length;
   
   const onlineRiders = scopedRiders.filter(r => {
     const onlineStatus = (r.onlineStatus || '').toUpperCase();
     const dutyStatus = (r.dutyStatus || '').toUpperCase();
-    return (onlineStatus === 'ONLINE' || dutyStatus === 'ON_DUTY') && r.status === 'approved';
-  });
-  const offlineRiders = scopedRiders.filter(r => {
-    const onlineStatus = (r.onlineStatus || '').toUpperCase();
-    const dutyStatus = (r.dutyStatus || '').toUpperCase();
-    return onlineStatus === 'OFFLINE' && dutyStatus !== 'ON_DUTY' && r.status === 'approved';
+    return (onlineStatus === 'ONLINE' || dutyStatus === 'ON_DUTY') && (r.status === 'approved' as any);
   });
 
   const activeCity = getActiveCity();
 
-  // Dynamic projection bounds based on the selected active city center coordinates:
-  // Plots locations onto an interactive SVG Grid (width: 500, height: 400).
-  const mapWidth = 500;
-  const mapHeight = 400;
-
-  const getXY = (lat: number, lng: number) => {
-    if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng) || !isFinite(lat) || !isFinite(lng)) {
-      return { x: 0, y: 0, isValid: false };
+  // Helper function to handle quick action tab navigation
+  const triggerTabNavigation = (tabName: string) => {
+    if (onNavigateTab) {
+      onNavigateTab(tabName);
     }
-    // Mercator-like custom projection centered on the active city
-    const minLat = activeCity.centerLat - 0.05;
-    const maxLat = activeCity.centerLat + 0.05;
-    const minLng = activeCity.centerLng - 0.05;
-    const maxLng = activeCity.centerLng + 0.05;
-
-    const x = ((lng - minLng) / (maxLng - minLng)) * mapWidth;
-    const y = mapHeight - (((lat - minLat) / (maxLat - minLat)) * mapHeight); // invert Y
-    return { 
-      x: Math.max(10, Math.min(mapWidth - 10, x)), 
-      y: Math.max(10, Math.min(mapHeight - 10, y)),
-      isValid: true
-    };
+    window.dispatchEvent(new CustomEvent('change-tab', { detail: tabName }));
   };
 
-  // Landmark centers for visual rendering, dynamically computed based on the selected city
-  const landmarks = [
-    { name: `${activeCity.name} Core`, lat: activeCity.centerLat, lng: activeCity.centerLng, desc: "Operational Center" },
-    { name: "North Sector", lat: activeCity.centerLat + 0.02, lng: activeCity.centerLng + 0.02, desc: "Northern Sector" },
-    { name: "South Sector", lat: activeCity.centerLat - 0.02, lng: activeCity.centerLng - 0.02, desc: "Southern Sector" },
-    { name: "East Sector", lat: activeCity.centerLat + 0.015, lng: activeCity.centerLng + 0.03, desc: "Eastern Sector" },
-    { name: "West Sector", lat: activeCity.centerLat - 0.015, lng: activeCity.centerLng - 0.03, desc: "Western Sector" }
-  ];
+  // Compute Pending Work Items
+  const pendingRestaurants = restaurants.filter(r => r.status === 'pending');
+  const pendingRiders = riders.filter(r => (r.status as any) === 'pending' || (r.status as any) === 'under_verification');
+  const pendingSettlements = 3; // Standard operational queue simulation
+  const pendingTickets = 2;
+  const pendingKYC = riders.filter(r => !r.aadhaarFrontUrl || !r.drivingLicenceUrl).length;
+
+  // Compute Live Critical Alerts (Max 5)
+  const criticalAlerts = useMemo(() => {
+    const list = [];
+
+    const unpaidOrders = scopedOrders.filter(o => o.paymentStatus === 'failed');
+    if (unpaidOrders.length > 0) {
+      list.push({
+        id: 'pay-failed',
+        title: `${unpaidOrders.length} Payment Failure${unpaidOrders.length > 1 ? 's' : ''}`,
+        desc: 'Customer checkout dropped or gateway gateway issue',
+        type: 'error',
+        tab: 'orders'
+      });
+    }
+
+    const unassignedLive = liveOrders.filter(o => !o.riderId);
+    if (unassignedLive.length > 0) {
+      list.push({
+        id: 'unassigned-orders',
+        title: `${unassignedLive.length} Unassigned Live Order${unassignedLive.length > 1 ? 's' : ''}`,
+        desc: 'Waiting for automatic or manual rider dispatch',
+        type: 'warning',
+        tab: 'live_tracking'
+      });
+    }
+
+    if (pendingRiders.length > 0) {
+      list.push({
+        id: 'rider-approval',
+        title: `${pendingRiders.length} Partner Onboarding Pending`,
+        desc: 'Driving license and Aadhaar verification queued',
+        type: 'info',
+        tab: 'riders'
+      });
+    }
+
+    if (pendingRestaurants.length > 0) {
+      list.push({
+        id: 'rest-approval',
+        title: `${pendingRestaurants.length} Merchant Application${pendingRestaurants.length > 1 ? 's' : ''}`,
+        desc: 'FSSAI and GST documentation needs audit',
+        type: 'info',
+        tab: 'restaurants'
+      });
+    }
+
+    const lowWalletRiders = scopedRiders.filter(r => r.walletBalance < 0);
+    if (lowWalletRiders.length > 0) {
+      list.push({
+        id: 'cod-warning',
+        title: `${lowWalletRiders.length} Rider COD Limit Overdue`,
+        desc: 'Negative wallet balance pending settlement',
+        type: 'warning',
+        tab: 'riders'
+      });
+    }
+
+    if (list.length === 0) {
+      list.push({
+        id: 'all-clear',
+        title: 'All Systems Operational',
+        desc: 'No critical alerts or dispatch bottlenecks detected',
+        type: 'success',
+        tab: 'dashboard'
+      });
+    }
+
+    return list.slice(0, 5);
+  }, [scopedOrders, liveOrders, pendingRiders, pendingRestaurants, scopedRiders]);
+
+  // Compute Recent Activity Stream (Latest 10)
+  const recentActivities = useMemo(() => {
+    const list = scopedOrders.slice(0, 10).map(o => ({
+      id: o.id,
+      title: `Order #${o.id.slice(-6)} - ${o.status.toUpperCase()}`,
+      subtitle: `${o.restaurantName} → ${o.customerName}`,
+      time: new Date(o.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      amount: `₹${o.totalAmount}`,
+      status: o.status
+    }));
+    return list;
+  }, [scopedOrders]);
 
   return (
-    <div className="space-y-8 animate-fade-in text-slate-100">
-      {/* Dynamic Upper Title and Telemetry */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-6">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-100 font-sans">Command Overview</h2>
-          <p className="text-slate-400 text-sm">Real-time telemetry and service matrices for {activeCity.name} logistics.</p>
-        </div>
-        <div className="flex items-center gap-3 font-mono text-xs bg-slate-900 border border-slate-800 px-4 py-2.5 rounded-xl">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span className="text-slate-300 font-medium">Live Gateway Node: Online</span>
-        </div>
-      </div>
-
-      {/* Top Scope Filter */}
-      <CityZoneFilter
-        selectedCityId={selectedCityId}
-        selectedWorkZoneId={selectedWorkZoneId}
-        onCityChange={setSelectedCityId}
-        onWorkZoneChange={setSelectedWorkZoneId}
-        workZones={workZones}
-        onlineRidersCount={onlineRiders.length}
-        unassignedOrdersCount={pendingOrders.length}
-      />
-
-      {/* Grid 1: Today's High-Value Counters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-slate-900 border border-slate-800/80 p-6 rounded-2xl relative overflow-hidden shadow-md group hover:border-amber-500/30 transition duration-200">
-          <div className="flex justify-between items-start mb-4">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Today's Revenue</span>
-            <div className="bg-emerald-500/10 text-emerald-400 p-2 rounded-xl border border-emerald-500/20">
-              <DollarSign className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="text-3xl font-bold text-slate-100 font-mono">₹{todayRevenue.toLocaleString('en-IN')}</div>
-          <div className="text-xs text-emerald-400 flex items-center gap-1 mt-2">
-            <TrendingUp className="w-3.5 h-3.5" />
-            <span>Active transactions logged today</span>
-          </div>
-          <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition"></div>
-        </div>
-
-        <div className="bg-slate-900 border border-slate-800/80 p-6 rounded-2xl relative overflow-hidden shadow-md group hover:border-amber-500/30 transition duration-200">
-          <div className="flex justify-between items-start mb-4">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Platform Commission</span>
-            <div className="bg-amber-500/10 text-amber-400 p-2 rounded-xl border border-amber-500/20">
-              <Percent className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="text-3xl font-bold text-slate-100 font-mono">₹{totalPlatformCommission.toLocaleString('en-IN')}</div>
-          <div className="text-xs text-amber-400 flex items-center gap-1 mt-2">
-            <span>Aggregated 15-18% platform share</span>
-          </div>
-          <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition"></div>
-        </div>
-
-        <div className="bg-slate-900 border border-slate-800/80 p-6 rounded-2xl relative overflow-hidden shadow-md group hover:border-amber-500/30 transition duration-200">
-          <div className="flex justify-between items-start mb-4">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Restaurant Earnings</span>
-            <div className="bg-purple-500/10 text-purple-400 p-2 rounded-xl border border-purple-500/20">
-              <Store className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="text-3xl font-bold text-slate-100 font-mono">₹{totalRestaurantEarnings.toLocaleString('en-IN')}</div>
-          <div className="text-xs text-purple-400 flex items-center gap-1 mt-2">
-            <span>Payable after commissions</span>
-          </div>
-          <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 rounded-full blur-2xl group-hover:bg-purple-500/10 transition"></div>
-        </div>
-
-        <div className="bg-slate-900 border border-slate-800/80 p-6 rounded-2xl relative overflow-hidden shadow-md group hover:border-amber-500/30 transition duration-200">
-          <div className="flex justify-between items-start mb-4">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Rider Earnings</span>
-            <div className="bg-cyan-500/10 text-cyan-400 p-2 rounded-xl border border-cyan-500/20">
-              <Bike className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="text-3xl font-bold text-slate-100 font-mono">₹{totalRiderEarnings.toLocaleString('en-IN')}</div>
-          <div className="text-xs text-cyan-400 flex items-center gap-1 mt-2">
-            <span>Direct payout logistics share</span>
-          </div>
-          <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-500/5 rounded-full blur-2xl group-hover:bg-cyan-500/10 transition"></div>
-        </div>
-      </div>
-
-      {/* Grid 2: Logistical Status Counters */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
-        <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl text-center">
-          <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider">Live Orders</p>
-          <p className="text-2xl font-bold font-mono text-amber-500 mt-1">{liveOrders.length}</p>
-        </div>
-        <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl text-center">
-          <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider">Completed</p>
-          <p className="text-2xl font-bold font-mono text-emerald-500 mt-1">{completedOrders.length}</p>
-        </div>
-        <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl text-center">
-          <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider">Cancelled</p>
-          <p className="text-2xl font-bold font-mono text-rose-500 mt-1">{cancelledOrders.length}</p>
-        </div>
-        <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl text-center">
-          <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider">Online Riders</p>
-          <p className="text-2xl font-bold font-mono text-emerald-400 mt-1">{onlineRiders.length}</p>
-        </div>
-        <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl text-center">
-          <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider">Offline Riders</p>
-          <p className="text-2xl font-bold font-mono text-slate-500 mt-1">{offlineRiders.length}</p>
-        </div>
-        <div className="bg-slate-900/60 border border-slate-800 p-4 rounded-xl text-center">
-          <p className="text-slate-500 text-xs font-semibold uppercase tracking-wider">Registered Users</p>
-          <p className="text-2xl font-bold font-mono text-indigo-400 mt-1">{customers.length + riders.length + restaurants.length}</p>
-        </div>
-      </div>
-
-      {/* Grid 3: Live Map & Revenue Analytics Graph */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* Live Tracking Overview Card */}
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl lg:col-span-5 flex flex-col shadow-xl justify-between min-h-[380px]">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-slate-100 text-base">Live Tracking Overview</h3>
-              <span className="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono font-bold">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                ACTIVE MONITORING
+    <div className="space-y-4 sm:space-y-6 text-slate-100 pb-16 lg:pb-0">
+      
+      {/* 1. TOP SECTION: STATUS HEADER */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg space-y-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
               </span>
+              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-100 font-sans">
+                Enterprise Command Center
+              </h1>
             </div>
-            
-            <p className="text-slate-400 text-xs mb-6 leading-relaxed">Real-time status of {activeCity.name} operations, active deliveries, and online fleet tracking.</p>
-            
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="bg-slate-950/50 border border-slate-800/60 p-3 rounded-xl">
-                <p className="text-slate-500 text-[10px] uppercase font-extrabold tracking-wider mb-1">Online Riders</p>
-                <p className="text-xl font-bold font-mono text-emerald-400">{onlineRiders.length}</p>
-              </div>
-              <div className="bg-slate-950/50 border border-slate-800/60 p-3 rounded-xl">
-                <p className="text-slate-500 text-[10px] uppercase font-extrabold tracking-wider mb-1">Active Deliveries</p>
-                <p className="text-xl font-bold font-mono text-amber-500">{scopedOrders.filter(o => ['accepted', 'preparing', 'ready_for_pickup', 'picked_up'].includes(o.status)).length}</p>
-              </div>
-              <div className="bg-slate-950/50 border border-slate-800/60 p-3 rounded-xl">
-                <p className="text-slate-500 text-[10px] uppercase font-extrabold tracking-wider mb-1">Pending Orders</p>
-                <p className="text-xl font-bold font-mono text-rose-400">{scopedOrders.filter(o => o.status === 'pending').length}</p>
-              </div>
-              <div className="bg-slate-950/50 border border-slate-800/60 p-3 rounded-xl">
-                <p className="text-slate-500 text-[10px] uppercase font-extrabold tracking-wider mb-1">In Progress</p>
-                <p className="text-xl font-bold font-mono text-sky-400">{scopedOrders.filter(o => ['accepted', 'preparing', 'ready_for_pickup'].includes(o.status)).length}</p>
-              </div>
-            </div>
-
-            <div className="border-t border-slate-800/60 pt-4 space-y-2 text-xs">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500">Tracking Status</span>
-                <span className="text-emerald-400 font-bold font-mono text-[11px]">LIVE FEED ACTIVE</span>
-              </div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400 font-mono">
+              <span className="flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-amber-500" />
+                {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+              <span className="flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                {currentTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+              <span className="text-slate-500">|</span>
+              <span className="text-amber-400 font-semibold">Admin: Master Operator</span>
             </div>
           </div>
 
-          <button 
-            onClick={onOpenLiveTracking}
-            className="w-full mt-6 bg-gradient-to-r from-amber-500 to-amber-600 hover:brightness-110 active:scale-[0.99] text-slate-950 font-black py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 text-xs shadow-lg shadow-amber-900/20 cursor-pointer"
+          <CityZoneFilter 
+            selectedCityId={selectedCityId}
+            selectedWorkZoneId={selectedWorkZoneId}
+            onCityChange={setSelectedCityId}
+            onWorkZoneChange={setSelectedWorkZoneId}
+            workZones={workZones}
+          />
+        </div>
+
+        {/* System Health Indicators Bar */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-2 border-t border-slate-800/80 text-[10px] font-mono">
+          <div className="bg-slate-950/60 border border-slate-850 px-2.5 py-1.5 rounded-lg flex items-center justify-between">
+            <span className="text-slate-400">Platform Status:</span>
+            <span className="text-emerald-400 font-bold flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3 text-emerald-400" /> Online
+            </span>
+          </div>
+
+          <div className="bg-slate-950/60 border border-slate-850 px-2.5 py-1.5 rounded-lg flex items-center justify-between">
+            <span className="text-slate-400">Firebase:</span>
+            <span className="text-emerald-400 font-bold flex items-center gap-1">
+              <Zap className="w-3 h-3 text-emerald-400" /> Connected
+            </span>
+          </div>
+
+          <div className="bg-slate-950/60 border border-slate-850 px-2.5 py-1.5 rounded-lg flex items-center justify-between">
+            <span className="text-slate-400">Firestore:</span>
+            <span className="text-emerald-400 font-bold flex items-center gap-1">
+              <Activity className="w-3 h-3 text-emerald-400" /> Synced
+            </span>
+          </div>
+
+          <div className="bg-slate-950/60 border border-slate-850 px-2.5 py-1.5 rounded-lg flex items-center justify-between">
+            <span className="text-slate-400">Cloud Functions:</span>
+            <span className="text-emerald-400 font-bold">Operational</span>
+          </div>
+
+          <div className="bg-slate-950/60 border border-slate-850 px-2.5 py-1.5 rounded-lg flex items-center justify-between col-span-2 sm:col-span-1">
+            <span className="text-slate-400">Realtime Sync:</span>
+            <span className="text-sky-400 font-bold">Live</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. TODAY SUMMARY: COMPACT KPI CARDS (Fits in 2 rows on mobile) */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-xs uppercase font-mono font-bold tracking-wider text-slate-400">Today's Key Performance Indicators</h2>
+          <span className="text-[10px] text-slate-500 font-mono">Scope: {activeCity.name}</span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          {/* Revenue */}
+          <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl flex flex-col justify-between hover:border-amber-500/40 transition">
+            <div className="flex justify-between items-start">
+              <span className="text-[10px] font-mono text-slate-400 uppercase">Today Revenue</span>
+              <div className="p-1 rounded-lg bg-amber-500/10 text-amber-400">
+                <DollarSign className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <p className="text-lg sm:text-xl font-bold font-mono text-amber-400">₹{todayRevenue.toLocaleString('en-IN')}</p>
+              <p className="text-[9px] text-slate-500">Paid orders total</p>
+            </div>
+          </div>
+
+          {/* Live Orders */}
+          <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl flex flex-col justify-between hover:border-sky-500/40 transition">
+            <div className="flex justify-between items-start">
+              <span className="text-[10px] font-mono text-slate-400 uppercase">Live Orders</span>
+              <div className="p-1 rounded-lg bg-sky-500/10 text-sky-400">
+                <ShoppingBag className="w-3.5 h-3.5 animate-bounce" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <p className="text-lg sm:text-xl font-bold font-mono text-sky-400">{liveOrders.length}</p>
+              <p className="text-[9px] text-slate-500">In dispatch queue</p>
+            </div>
+          </div>
+
+          {/* Completed Orders */}
+          <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl flex flex-col justify-between hover:border-emerald-500/40 transition">
+            <div className="flex justify-between items-start">
+              <span className="text-[10px] font-mono text-slate-400 uppercase">Completed</span>
+              <div className="p-1 rounded-lg bg-emerald-500/10 text-emerald-400">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <p className="text-lg sm:text-xl font-bold font-mono text-emerald-400">{completedOrders.length}</p>
+              <p className="text-[9px] text-slate-500">Successfully delivered</p>
+            </div>
+          </div>
+
+          {/* Cancelled Orders */}
+          <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl flex flex-col justify-between hover:border-rose-500/40 transition">
+            <div className="flex justify-between items-start">
+              <span className="text-[10px] font-mono text-slate-400 uppercase">Cancelled</span>
+              <div className="p-1 rounded-lg bg-rose-500/10 text-rose-400">
+                <XCircle className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <p className="text-lg sm:text-xl font-bold font-mono text-rose-400">{cancelledOrders.length}</p>
+              <p className="text-[9px] text-slate-500">Rejected or dropped</p>
+            </div>
+          </div>
+
+          {/* Online Riders */}
+          <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl flex flex-col justify-between hover:border-indigo-500/40 transition">
+            <div className="flex justify-between items-start">
+              <span className="text-[10px] font-mono text-slate-400 uppercase">Online Riders</span>
+              <div className="p-1 rounded-lg bg-indigo-500/10 text-indigo-400">
+                <Bike className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <p className="text-lg sm:text-xl font-bold font-mono text-indigo-400">{onlineRiders.length}</p>
+              <p className="text-[9px] text-slate-500">On duty active</p>
+            </div>
+          </div>
+
+          {/* Active Restaurants */}
+          <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-xl flex flex-col justify-between hover:border-purple-500/40 transition">
+            <div className="flex justify-between items-start">
+              <span className="text-[10px] font-mono text-slate-400 uppercase">Active Outlets</span>
+              <div className="p-1 rounded-lg bg-purple-500/10 text-purple-400">
+                <Store className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <p className="text-lg sm:text-xl font-bold font-mono text-purple-400">{activeRestaurantsCount}</p>
+              <p className="text-[9px] text-slate-500">Merchant outlets</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. QUICK ACTIONS (Max 6 Large Touch-Friendly Buttons) */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+        <h2 className="text-xs uppercase font-mono font-bold tracking-wider text-slate-400">Quick Administrative Actions</h2>
+        
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          <button
+            onClick={() => {
+              triggerTabNavigation('restaurants');
+              window.dispatchEvent(new CustomEvent('open-add-restaurant'));
+            }}
+            className="bg-slate-950 border border-slate-800 hover:border-amber-500/50 hover:bg-slate-850 p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer min-h-[56px] group active:scale-95"
           >
-            <span>Open Live Tracking Workspace</span>
-            <ArrowRight className="w-4 h-4 text-slate-950" />
+            <Store className="w-4 h-4 text-amber-500 group-hover:scale-110 transition" />
+            <span className="text-xs font-bold text-slate-200">Add Restaurant</span>
+          </button>
+
+          <button
+            onClick={() => {
+              triggerTabNavigation('riders');
+              window.dispatchEvent(new CustomEvent('open-add-rider'));
+            }}
+            className="bg-slate-950 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-850 p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer min-h-[56px] group active:scale-95"
+          >
+            <Bike className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition" />
+            <span className="text-xs font-bold text-slate-200">Add Rider</span>
+          </button>
+
+          <button
+            onClick={() => triggerTabNavigation('orders')}
+            className="bg-slate-950 border border-slate-800 hover:border-sky-500/50 hover:bg-slate-850 p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer min-h-[56px] group active:scale-95"
+          >
+            <ShoppingBag className="w-4 h-4 text-sky-400 group-hover:scale-110 transition" />
+            <span className="text-xs font-bold text-slate-200">Manual Order</span>
+          </button>
+
+          <button
+            onClick={() => triggerTabNavigation('live_tracking')}
+            className="bg-slate-950 border border-slate-800 hover:border-emerald-500/50 hover:bg-slate-850 p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer min-h-[56px] group active:scale-95"
+          >
+            <Users className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition" />
+            <span className="text-xs font-bold text-slate-200">Assign Rider</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (onOpenLiveTracking) {
+                onOpenLiveTracking();
+              } else {
+                triggerTabNavigation('live_tracking');
+              }
+            }}
+            className="bg-slate-950 border border-slate-800 hover:border-amber-500/50 hover:bg-slate-850 p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer min-h-[56px] group active:scale-95"
+          >
+            <MapPin className="w-4 h-4 text-amber-400 group-hover:scale-110 transition" />
+            <span className="text-xs font-bold text-slate-200">Live Tracking</span>
+          </button>
+
+          <button
+            onClick={() => triggerTabNavigation('support')}
+            className="bg-slate-950 border border-slate-800 hover:border-rose-500/50 hover:bg-slate-850 p-3 rounded-xl flex flex-col items-center justify-center gap-1.5 text-center transition cursor-pointer min-h-[56px] group active:scale-95"
+          >
+            <LifeBuoy className="w-4 h-4 text-rose-400 group-hover:scale-110 transition" />
+            <span className="text-xs font-bold text-slate-200">Support Desk</span>
           </button>
         </div>
-
-        {/* Revenue Trends Pure SVG Graph */}
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl lg:col-span-7 flex flex-col shadow-xl">
-          <div>
-            <h3 className="font-bold text-slate-100 text-base">Revenue & Transactions Trend</h3>
-            <p className="text-slate-400 text-xs">Platform daily sales aggregator history.</p>
-          </div>
-
-          <div className="flex-1 flex flex-col justify-end mt-6">
-            {/* Highly customized SVG Area Line Chart */}
-            <div className="h-48 w-full bg-slate-950/60 rounded-xl border border-slate-800 p-3 relative flex flex-col justify-between">
-              {/* Grid guide labels */}
-              <div className="absolute left-2 top-2 text-[9px] font-mono text-slate-500">₹1,500</div>
-              <div className="absolute left-2 top-24 text-[9px] font-mono text-slate-500">₹750</div>
-              <div className="absolute left-2 bottom-2 text-[9px] font-mono text-slate-500">₹0</div>
-
-              <svg viewBox="0 0 400 150" className="w-full h-full">
-                <defs>
-                  <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.4"/>
-                    <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.0"/>
-                  </linearGradient>
-                </defs>
-
-                {/* Horizontal reference lines */}
-                <line x1="0" y1="10" x2="400" y2="10" stroke="#334155" strokeWidth="0.5" strokeDasharray="3 3" />
-                <line x1="0" y1="75" x2="400" y2="75" stroke="#334155" strokeWidth="0.5" strokeDasharray="3 3" />
-                <line x1="0" y1="140" x2="400" y2="140" stroke="#334155" strokeWidth="0.5" />
-
-                {/* Area under line */}
-                <path 
-                  d="M 10 140 Q 80 110 140 80 T 260 50 T 390 20 L 390 140 Z" 
-                  fill="url(#chartGrad)" 
-                />
-
-                {/* Main line */}
-                <path 
-                  d="M 10 140 Q 80 110 140 80 T 260 50 T 390 20" 
-                  fill="none" 
-                  stroke="#f59e0b" 
-                  strokeWidth="2.5" 
-                  strokeLinecap="round"
-                />
-
-                {/* Interaction Node Dots */}
-                <circle cx="140" cy="80" r="4" fill="#fff" stroke="#f59e0b" strokeWidth="2" />
-                <circle cx="260" cy="50" r="4" fill="#fff" stroke="#f59e0b" strokeWidth="2" />
-                <circle cx="390" cy="20" r="4" fill="#fff" stroke="#f59e0b" strokeWidth="2" />
-              </svg>
-
-              {/* Horizontal bottom labels */}
-              <div className="flex justify-between px-2 text-[9px] font-mono text-slate-400 border-t border-slate-800 pt-1.5">
-                <span>08:00 AM</span>
-                <span>12:00 PM</span>
-                <span>04:00 PM</span>
-                <span>08:00 PM</span>
-              </div>
-            </div>
-
-            {/* Sales performance details */}
-            <div className="mt-6 space-y-3">
-              <div className="flex items-center justify-between text-xs border-b border-slate-800/60 pb-2">
-                <span className="text-slate-400">Average Order Value</span>
-                <span className="font-semibold text-slate-100 font-mono">₹280.50</span>
-              </div>
-              <div className="flex items-center justify-between text-xs border-b border-slate-800/60 pb-2">
-                <span className="text-slate-400">Peak Ordering Hour</span>
-                <span className="font-semibold text-slate-100 font-mono">08:00 PM - 09:00 PM</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400">Platform Commission Share</span>
-                <span className="font-semibold text-amber-500 font-mono">15.4% Average</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
       </div>
 
-      {/* Grid 4: Recent Live Orders Panel */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h3 className="font-bold text-slate-100 text-base">Active Logistical Streams</h3>
-            <p className="text-slate-400 text-xs">Real-time status registers of outstanding order payloads.</p>
+      {/* 4. MAIN OPERATIONAL GRID (Live Alerts, Live Map Preview, Pending Work, Recent Activity) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        
+        {/* LEFT COLUMN: LIVE ALERTS & COMPACT LIVE MAP PREVIEW */}
+        <div className="space-y-4 lg:col-span-1">
+          {/* LIVE ALERTS (Max 5) */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs uppercase font-mono font-bold tracking-wider text-slate-400 flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                Live Critical Alerts
+              </h3>
+              <span className="bg-amber-500/10 text-amber-400 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
+                {criticalAlerts.length}
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              {criticalAlerts.map(alert => (
+                <div
+                  key={alert.id}
+                  onClick={() => triggerTabNavigation(alert.tab)}
+                  className={`p-3 rounded-xl border flex items-start gap-2.5 cursor-pointer transition ${
+                    alert.type === 'error'
+                      ? 'bg-rose-500/10 border-rose-500/30 text-rose-200 hover:border-rose-500'
+                      : alert.type === 'warning'
+                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-200 hover:border-amber-500'
+                      : alert.type === 'info'
+                      ? 'bg-sky-500/10 border-sky-500/30 text-sky-200 hover:border-sky-500'
+                      : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
+                  }`}
+                >
+                  <div className="mt-0.5 shrink-0">
+                    {alert.type === 'error' && <XCircle className="w-4 h-4 text-rose-400" />}
+                    {alert.type === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-400" />}
+                    {alert.type === 'info' && <ShoppingBag className="w-4 h-4 text-sky-400" />}
+                    {alert.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold leading-tight">{alert.title}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5 leading-normal truncate">{alert.desc}</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-slate-500 shrink-0 self-center" />
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="flex items-center gap-1 text-xs text-amber-500 hover:underline cursor-pointer">
-            <span>View All Board Orders</span>
-            <ArrowRight className="w-3 h-3" />
+
+          {/* COMPACT LIVE MAP PREVIEW */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs uppercase font-mono font-bold tracking-wider text-slate-400 flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-amber-400" />
+                Live Logistics Radar
+              </h3>
+              <span className="text-[10px] text-emerald-400 font-mono font-bold">{onlineRiders.length} Active Riders</span>
+            </div>
+
+            <div className="relative bg-slate-950 border border-slate-850 rounded-xl overflow-hidden h-36 flex items-center justify-center">
+              <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#334155_1px,transparent_1px)] [background-size:16px_16px]" />
+              <div className="text-center space-y-1 relative z-10 p-3">
+                <Bike className="w-8 h-8 text-amber-500 mx-auto animate-pulse" />
+                <p className="text-xs font-bold text-slate-200">{activeCity.name} Logistics Grid</p>
+                <p className="text-[10px] text-slate-500 font-mono">{liveOrders.length} active dispatches in motion</p>
+              </div>
+            </div>
+
+            <button
+              onClick={onOpenLiveTracking}
+              className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition cursor-pointer"
+            >
+              Open Live Tracking
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 
-        {liveOrders.length === 0 ? (
-          <div className="text-center py-8 text-slate-500 text-sm">
-            No live active order processes in queue currently.
+        {/* RIGHT COLUMN: PENDING WORK & RECENT ACTIVITY STREAM */}
+        <div className="space-y-4 lg:col-span-2">
+          {/* PENDING WORK AUDIT */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <h3 className="text-xs uppercase font-mono font-bold tracking-wider text-slate-400 flex items-center gap-1.5">
+              <FileCheck2 className="w-3.5 h-3.5 text-indigo-400" />
+              Pending Operational Backlog
+            </h3>
+
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+              <div 
+                onClick={() => triggerTabNavigation('restaurants')}
+                className="bg-slate-950 border border-slate-850 p-3 rounded-xl hover:border-slate-700 transition cursor-pointer"
+              >
+                <span className="text-[10px] text-slate-500 font-mono uppercase block truncate">Merchants</span>
+                <p className="text-base font-bold font-mono text-amber-400 mt-1">{pendingRestaurants.length}</p>
+                <span className="text-[9px] text-slate-400">Approval req.</span>
+              </div>
+
+              <div 
+                onClick={() => triggerTabNavigation('riders')}
+                className="bg-slate-950 border border-slate-850 p-3 rounded-xl hover:border-slate-700 transition cursor-pointer"
+              >
+                <span className="text-[10px] text-slate-500 font-mono uppercase block truncate">Rider Partners</span>
+                <p className="text-base font-bold font-mono text-sky-400 mt-1">{pendingRiders.length}</p>
+                <span className="text-[9px] text-slate-400">Onboarding queue</span>
+              </div>
+
+              <div 
+                onClick={() => triggerTabNavigation('financials')}
+                className="bg-slate-950 border border-slate-850 p-3 rounded-xl hover:border-slate-700 transition cursor-pointer"
+              >
+                <span className="text-[10px] text-slate-500 font-mono uppercase block truncate">Settlements</span>
+                <p className="text-base font-bold font-mono text-emerald-400 mt-1">{pendingSettlements}</p>
+                <span className="text-[9px] text-slate-400">Payout batches</span>
+              </div>
+
+              <div 
+                onClick={() => triggerTabNavigation('support')}
+                className="bg-slate-950 border border-slate-850 p-3 rounded-xl hover:border-slate-700 transition cursor-pointer"
+              >
+                <span className="text-[10px] text-slate-500 font-mono uppercase block truncate">Support Tickets</span>
+                <p className="text-base font-bold font-mono text-rose-400 mt-1">{pendingTickets}</p>
+                <span className="text-[9px] text-slate-400">Open tickets</span>
+              </div>
+
+              <div 
+                onClick={() => triggerTabNavigation('riders')}
+                className="bg-slate-950 border border-slate-850 p-3 rounded-xl hover:border-slate-700 transition cursor-pointer col-span-2 sm:col-span-1"
+              >
+                <span className="text-[10px] text-slate-500 font-mono uppercase block truncate">KYC Audits</span>
+                <p className="text-base font-bold font-mono text-purple-400 mt-1">{pendingKYC}</p>
+                <span className="text-[9px] text-slate-400">Doc verification</span>
+              </div>
+            </div>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950 text-slate-400 uppercase tracking-wider border-b border-slate-800">
-                <tr>
-                  <th className="p-4 rounded-l-lg font-semibold">Order ID</th>
-                  <th className="p-4 font-semibold">Customer</th>
-                  <th className="p-4 font-semibold">Vendor Restaurant</th>
-                  <th className="p-4 font-semibold">Assigned Rider</th>
-                  <th className="p-4 font-semibold">Subtotal</th>
-                  <th className="p-4 font-semibold">Payment Status</th>
-                  <th className="p-4 rounded-r-lg font-semibold">Workflow Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/50">
-                {liveOrders.map((o) => (
-                  <tr key={o.id} className="hover:bg-slate-950/20 transition">
-                    <td className="p-4 font-mono font-bold text-slate-200">{o.id}</td>
-                    <td className="p-4 font-medium text-slate-100">{o.customerName}</td>
-                    <td className="p-4 text-slate-400">{o.restaurantName}</td>
-                    <td className="p-4">
-                      {o.riderName ? (
-                        <span className="flex items-center gap-1.5 text-slate-300">
-                          <Bike className="w-3.5 h-3.5 text-sky-400" />
-                          {o.riderName}
-                        </span>
-                      ) : (
-                        <span className="text-amber-500 italic bg-amber-500/5 px-2 py-0.5 rounded border border-amber-500/10">Unassigned</span>
-                      )}
-                    </td>
-                    <td className="p-4 font-mono text-slate-200">₹{o.totalAmount}</td>
-                    <td className="p-4">
-                      <span className={`px-2 py-0.5 rounded font-medium ${
-                        o.paymentStatus === 'paid' 
-                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                          : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+
+          {/* RECENT ACTIVITY STREAM (Latest 10) */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs uppercase font-mono font-bold tracking-wider text-slate-400 flex items-center gap-1.5">
+                <Receipt className="w-3.5 h-3.5 text-sky-400" />
+                Recent Orders Stream (Latest 10)
+              </h3>
+              <button
+                onClick={() => triggerTabNavigation('orders')}
+                className="text-[10px] font-bold text-amber-500 hover:text-amber-400 flex items-center gap-1 cursor-pointer font-mono"
+              >
+                View All Orders <ChevronRight className="w-3 h-3" />
+              </button>
+            </div>
+
+            <div className="divide-y divide-slate-850">
+              {recentActivities.map(item => (
+                <div
+                  key={item.id}
+                  onClick={() => triggerTabNavigation('orders')}
+                  className="py-2.5 flex items-center justify-between gap-3 hover:bg-slate-850/40 px-2 rounded-lg transition cursor-pointer text-xs"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-200 font-mono">{item.title}</span>
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                        item.status === 'delivered'
+                          ? 'bg-emerald-500/10 text-emerald-400'
+                          : item.status === 'cancelled'
+                          ? 'bg-rose-500/10 text-rose-400'
+                          : 'bg-amber-500/10 text-amber-400'
                       }`}>
-                        {o.paymentStatus}
+                        {item.status}
                       </span>
-                    </td>
-                    <td className="p-4">
-                      <span className="bg-slate-800 text-slate-300 border border-slate-700 px-2.5 py-1 rounded-full text-[11px] font-medium uppercase tracking-wider">
-                        {o.status.replace(/_/g, ' ')}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                    <p className="text-[10px] text-slate-400 truncate mt-0.5">{item.subtitle}</p>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <p className="font-mono font-bold text-amber-400">{item.amount}</p>
+                    <p className="text-[9px] text-slate-500 font-mono">{item.time}</p>
+                  </div>
+                </div>
+              ))}
+
+              {recentActivities.length === 0 && (
+                <div className="p-6 text-center text-slate-500 text-xs">No recent order activity recorded.</div>
+              )}
+            </div>
           </div>
-        )}
+        </div>
+
       </div>
 
     </div>

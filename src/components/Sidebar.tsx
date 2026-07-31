@@ -28,20 +28,45 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ activeTab, setActiveTab, adminEmail, onLogout, onResetDb, isOpen, onClose }: SidebarProps) {
-  const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'live_tracking', label: '📍 Live Tracking', icon: MapPin, badge: 'Live' },
-    { id: 'orders', label: 'Real-time Orders', icon: ShoppingBag, badge: 'Live' },
-    { id: 'gig_management', label: 'Gig Management', icon: CalendarDays, badge: 'New' },
-    { id: 'restaurants', label: 'Restaurant Vendors', icon: UtensilsCrossed },
-    { id: 'riders', label: 'Rider Partners', icon: Bike },
-    { id: 'customers', label: 'Customer Management', icon: Users },
-    { id: 'billing', label: 'Charges & Commissions', icon: Percent },
-    { id: 'marketing', label: 'Area Management', icon: MapPin },
-    { id: 'financials', label: 'Wallet Settlements', icon: Wallet },
-    { id: 'payment_management', label: 'Employee & Payout Desk', icon: Wallet, badge: 'PRO' },
-    { id: 'support', label: 'Support & Tickets', icon: MessageSquare },
-    { id: 'settings', label: 'Settings & Security', icon: Settings },
+  const menuSections = [
+    {
+      title: 'HOME',
+      items: [
+        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      ],
+    },
+    {
+      title: 'OPERATIONS',
+      items: [
+        { id: 'live_tracking', label: 'Live Tracking', icon: MapPin, badge: 'Live' },
+        { id: 'orders', label: 'Real-time Orders', icon: ShoppingBag, badge: 'Live' },
+        { id: 'gig_management', label: 'Gig Management', icon: CalendarDays, badge: 'New' },
+      ],
+    },
+    {
+      title: 'BUSINESS',
+      items: [
+        { id: 'restaurants', label: 'Restaurant Vendors', icon: UtensilsCrossed },
+        { id: 'riders', label: 'Rider Partners', icon: Bike },
+        { id: 'customers', label: 'Customer Management', icon: Users },
+      ],
+    },
+    {
+      title: 'FINANCE',
+      items: [
+        { id: 'billing', label: 'Charges & Commissions', icon: Percent },
+        { id: 'financials', label: 'Wallet Settlements', icon: Wallet },
+        { id: 'payment_management', label: 'Employee & Payout Desk', icon: Wallet, badge: 'PRO' },
+      ],
+    },
+    {
+      title: 'PLATFORM',
+      items: [
+        { id: 'marketing', label: 'Area Management', icon: MapPin },
+        { id: 'support', label: 'Support & Tickets', icon: MessageSquare },
+        { id: 'settings', label: 'Settings & Security', icon: Settings },
+      ],
+    },
   ];
 
   return (
@@ -49,19 +74,19 @@ export default function Sidebar({ activeTab, setActiveTab, adminEmail, onLogout,
       isOpen ? 'translate-x-0' : '-translate-x-full'
     }`}>
       {/* Branding Header */}
-      <div className="p-6 border-b border-slate-800 flex items-center justify-between shrink-0">
+      <div className="p-5 border-b border-slate-800 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <div className="bg-gradient-to-tr from-amber-500 to-orange-600 p-2 rounded-xl text-slate-950 font-black tracking-widest text-lg shadow-lg">
             TT
           </div>
           <div>
             <h1 className="text-lg font-bold text-slate-100 tracking-tight font-sans">TING TONG</h1>
-            <span className="text-xs text-amber-500 font-mono tracking-wider">BHOPAL ADMIN</span>
+            <span className="text-xs text-amber-500 font-mono tracking-wider">MASTER ADMIN PANEL</span>
           </div>
         </div>
         <button 
           onClick={onClose}
-          className="lg:hidden text-slate-400 hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+          className="lg:hidden text-slate-400 hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-800 transition cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
           title="Close Sidebar"
         >
           <X className="w-5 h-5" />
@@ -70,47 +95,54 @@ export default function Sidebar({ activeTab, setActiveTab, adminEmail, onLogout,
 
       {/* Admin Profile Segment */}
       {adminEmail && (
-        <div className="px-6 py-4 border-b border-slate-800/60 bg-slate-950/20 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-slate-100 uppercase">
+        <div className="px-5 py-3 border-b border-slate-800/60 bg-slate-950/20 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-slate-100 uppercase shrink-0">
             {adminEmail.charAt(0)}
           </div>
           <div className="min-w-0">
-            <p className="text-xs text-slate-400 font-medium">Logged in as</p>
-            <p className="text-sm font-semibold text-slate-200 truncate font-mono">{adminEmail}</p>
+            <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider font-mono">Logged in as</p>
+            <p className="text-xs font-semibold text-slate-200 truncate font-mono">{adminEmail}</p>
           </div>
         </div>
       )}
 
       {/* Menu Options Scroll Container */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-1">
-        {menuItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activeTab === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => {
-                setActiveTab(item.id);
-                onClose();
-              }}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition duration-150 cursor-pointer ${
-                isActive
-                  ? 'bg-amber-500/10 text-amber-500 border-l-4 border-amber-500'
-                  : 'hover:bg-slate-800/50 text-slate-400 hover:text-slate-200 border-l-4 border-transparent'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <Icon className={`w-5 h-5 ${isActive ? 'text-amber-500' : 'text-slate-500'}`} />
-                <span>{item.label}</span>
-              </div>
-              {item.badge && (
-                <span className="bg-red-500/10 text-red-400 border border-red-500/20 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full animate-pulse">
-                  {item.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
+      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+        {menuSections.map((section) => (
+          <div key={section.title} className="space-y-1">
+            <div className="px-3 text-[10px] font-bold font-mono text-slate-500 uppercase tracking-widest mb-1.5">
+              {section.title}
+            </div>
+            {section.items.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    onClose();
+                  }}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition duration-150 cursor-pointer min-h-[42px] ${
+                    isActive
+                      ? 'bg-amber-500/15 text-amber-400 border-l-4 border-amber-500 font-bold shadow-sm'
+                      : 'hover:bg-slate-800/60 text-slate-400 hover:text-slate-200 border-l-4 border-transparent'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-amber-400' : 'text-slate-500'}`} />
+                    <span className="truncate">{item.label}</span>
+                  </div>
+                  {item.badge && (
+                    <span className="bg-orange-500/10 text-orange-400 border border-orange-500/20 text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full shrink-0">
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        ))}
       </div>
 
       {/* Actions and Status Footer */}
